@@ -23,6 +23,12 @@ What Agent Radar does and the rules it follows. See [CLAUDE.md](../CLAUDE.md) fo
 - The menu bar item shows how many conversations need the user.
   - A conversation needs the user when it is **waiting for input** or has **unread messages**.
   - When nothing needs the user, the item shows just the icon, without a number.
+  - In Settings the user chooses what the number counts:
+    - **Waiting and unread** (the default).
+    - **Waiting only**, for users who find a number for every finished reply too noisy.
+    - **None, only the icon**: no number, but the icon still changes when something needs the user.
+  - Only conversations in sections the menu shows count, so the number always matches the menu.
+    - *Why:* a number the user can't find in the menu is useless.
 - The count updates by itself within a few seconds of a change.
   - VS Code saves its state with some delay, so an unread change there can take a few seconds to show.
 
@@ -39,9 +45,11 @@ What Agent Radar does and the rules it follows. See [CLAUDE.md](../CLAUDE.md) fo
     subtitle.
   - Comes from Claude Code's own session state, so it works without the optional hooks.
 - **Open**: the conversation is open (in a VS Code tab, or running in a terminal) with nothing pending.
-- Archived conversations (archived in the Claude Code extension) are left out, unless they are running.
+- Archived conversations (archived in the Claude Code extension) are left out, unless they are waiting for
+  input, unread or working.
   - *Why:* archiving is how the user says they're done with a conversation; counting them made the numbers
-    meaningless.
+    meaningless. But an archived conversation that still needs the user (or is still busy) must not disappear.
+  - An archived conversation that is merely open (running with nothing pending) is left out.
 
 ## Waiting for input
 
@@ -100,23 +108,29 @@ What Agent Radar does and the rules it follows. See [CLAUDE.md](../CLAUDE.md) fo
   4. **Recent workspaces**: other recently opened VS Code workspaces.
      - Limited to the 10 most recent.
   - Empty sections are left out, except Active workspaces, which then says so.
+  - In Settings the user can hide Terminal sessions, Closed workspaces and Recent workspaces.
+    - Active workspaces can't be hidden: it's the core of the menu.
+    - Hidden sections are still tracked (eg. what the user has seen in Terminal), they're just not shown or
+      counted.
 - Within a section, entries that need the user come first, then the most recently used.
 - Every entry shows how long ago its most recently changed conversation changed, as a short age ("now", "15m",
   "3h", "2d", "5w", "1y"), with the exact time on hover.
   - A conversation changes when Claude Code writes to its transcript: a message, a tool call, a title.
 - An entry that needs the user lists those conversations by title under it, marked waiting or unread.
-- Resting the pointer on an entry with conversations, or clicking it, opens a foldout beside the menu:
+- Resting the pointer on an entry with conversations opens a foldout beside the menu:
   - It lists all the entry's conversations with their state and age: those that need the user first, then the
     most recently changed.
   - Clicking a conversation goes straight to it.
   - For a VS Code workspace, the foldout also has an item to open the workspace itself.
   - Resting on another entry switches the foldout to that entry; resting on an entry without conversations
     closes it.
-- Clicking an entry without conversations (such as a recent workspace) opens it in VS Code right away.
+- Clicking an entry opens its workspace right away, whether or not it has conversations.
+  - *Why:* going to the workspace is the common case; the foldout is one hover away.
+  - For a VS Code workspace this opens it in VS Code (or brings its window to the front); for a terminal folder
+    it brings its most relevant session to the front.
 - Whenever a click takes the user to a conversation or workspace (in the menu or in a foldout), the menu and
   its foldout close.
   - *Why:* the menu otherwise stays open on top of the window the user just went to.
-  - Clicking an entry with conversations only opens or closes its foldout, so the menu stays open.
 - Clicking a VS Code conversation opens its workspace (brings its window to the front if already open) and then
   the conversation.
 - A VS Code workspace is a folder or a `.code-workspace` file; it is shown by the folder or file name, without
@@ -127,9 +141,20 @@ What Agent Radar does and the rules it follows. See [CLAUDE.md](../CLAUDE.md) fo
   - *Why:* VS Code keeps no live list of its windows on disk; the extension does.
 - The menu has **Refresh**, **Settings…** and **Quit**.
 
+## Settings
+
+- **Launch at login** starts Agent Radar when the user logs in.
+  - Uses macOS's Login Items, so the user can also turn it off in System Settings.
+  - When it's turned off there, or macOS wants the user to allow it first, Settings says so and has a button
+    to open Login Items.
+  - Only works for the app bundle, not when run with `swift run`; Settings shows the error then.
+- What the menu bar number counts and which sections the menu shows: see [Menu bar item](#menu-bar-item) and
+  [The menu](#the-menu).
+- **Show conversations waiting for input**: see [Waiting for input](#waiting-for-input).
+- Settings other than the hooks and Launch at login are stored in the app's own preferences.
+
 ## Not built yet
 
-- Launch at login.
 - Notifications when a conversation starts waiting.
 - Seeing which tab is in front, and bringing a tab forward, in terminals other than Terminal.app (iTerm2,
   Ghostty, ...), and for sessions inside tmux or screen.

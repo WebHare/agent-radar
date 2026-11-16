@@ -29,6 +29,7 @@ these formats are internal to VS Code and Claude Code and may change with an upd
 
 - `Sources/RadarKit`: all logic, tested.
   - `Model.swift`: workspaces, conversations, states, the menu sections and the `ConversationProvider` protocol.
+  - `MenuSettings.swift`: the user's menu choices (which sections, what the menu bar counts) and how they're stored.
   - `Radar.swift`: combines VS Code's workspaces and all providers into the menu sections.
   - `ClaudeCodeProvider.swift`: everything specific to Claude Code's state, including the hook event log.
   - `ClaudeHooks.swift`: installing and removing the Claude Code hooks, and the hook script.
@@ -53,8 +54,12 @@ scripts/build-app.sh                          # build build/Agent Radar.app
 ```
 
 `scripts/build-app.sh` also takes `--universal` (Apple silicon and Intel), `--dmg` (also builds
-`build/Agent-Radar-<version>.dmg`) and `--install`. It signs ad-hoc unless `SIGN_IDENTITY` names a certificate,
-for example `SIGN_IDENTITY="Developer ID Application: WebHare bv (MF6WPNPK5H)"`. The app is then signed with
+`build/Agent-Radar-<version>.dmg`) and `--install`. It signs with `SIGN_IDENTITY` when set, for example
+`SIGN_IDENTITY="Developer ID Application: WebHare bv (MF6WPNPK5H)"`; otherwise with the first Developer ID
+Application or Apple Development certificate in your keychain; otherwise ad-hoc (`SIGN_IDENTITY=-` forces
+ad-hoc). Sign with a certificate when you can: macOS ties privacy permissions (such as access to workspace
+files on the Desktop) to the signature, and an ad-hoc signature changes with every build, so macOS asks again
+after each one. The app is then signed with
 the hardened runtime and [the Apple Events entitlement](scripts/AgentRadar.entitlements), which is needed to
 talk to Terminal. A locally signed DMG is not notarized; only CI does that.
 
