@@ -39,6 +39,18 @@ What Agent Radar does and the rules it follows. See [CLAUDE.md](../CLAUDE.md) fo
 - **Unread**: the conversation finished a reply the user hasn't looked at yet.
   - In VS Code: matches the orange dot on the conversation's tab, and comes from the same data, so opening the
     conversation in VS Code clears it here too.
+  - In VS Code, a conversation is also unread when its reply finished while VS Code wasn't the frontmost app,
+    until VS Code is the frontmost app again. Such a conversation can be unread here while its tab dot is gray.
+    - *Why:* the extension only marks a reply unread when its tab is hidden, and ignores window focus. A reply
+      that finishes in a tab in front of a background window, or while VS Code is behind another app, keeps a gray
+      dot and went unnoticed. Better a reply marked unread that the user saw than one they missed.
+    - Temporary: drop this once the extension takes window focus into account (reported to Claude Code as
+      anthropics/claude-code#110457, tracked here in issue #3).
+    - Needs no permissions: the app only checks which app is in front, not which window.
+    - Caveat: a reply that finishes in one VS Code window while the user works in another is still missed, and
+      bringing any VS Code window to the front clears all of these marks.
+    - Also applies to sessions in VS Code's integrated terminal, which have no unread dot of their own.
+    - Replies that finished before the app first ran don't count.
   - In a terminal: see [Terminal sessions](#terminal-sessions).
 - **Working**: the conversation is busy (thinking or running tools). Not counted in the menu bar.
   - A workspace or folder with working conversations shows a spinner in the menu, with the number in its

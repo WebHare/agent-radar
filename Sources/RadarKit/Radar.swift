@@ -64,4 +64,9 @@ public final class Radar: @unchecked Sendable {
   public func markTerminalSeen(tty: String) {
     for provider in providers { provider.markTerminalSeen(tty: tty) }
   }
+
+  /// VS Code is the frontmost app now.
+  public func markVSCodeFront() {
+    for provider in providers { provider.markVSCodeFront() }
+  }
 }
