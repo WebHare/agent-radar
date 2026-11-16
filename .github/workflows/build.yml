@@ -1,0 +1,84 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    runs-on: macos-26
+    env:
+      # Developer ID signing and notarization only happen when these secrets are configured
+      # (see DEVELOPERS.md, "Continuous integration"). Without them the app is ad-hoc signed.
+      # The secrets and variables are maintained by WebHare's portal (webhare_portal, data/github-projects.yaml).
+      HAS_SIGNING: ${{ secrets.MACOS_CERTIFICATE_P12 != '' && secrets.NOTARY_API_KEY != '' }}
+      SIGNING_IDENTITY: "Developer ID Application: WebHare bv (MF6WPNPK5H)"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # build-app.sh takes the version from `git describe --tags`, which needs the tags.
+          fetch-depth: 0
+
+      - name: Test RadarKit
+        run: swift test
+
+      - name: Import the Developer ID certificate
+        if: env.HAS_SIGNING == 'true'
+        env:
+          CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "$CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$KEYCHAIN" -P "$CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+          rm "$RUNNER_TEMP/certificate.p12"
+
+      - name: Build Agent Radar.app and the DMG
+        run: |
+          if [ "$HAS_SIGNING" = true ]; then
+            export SIGN_IDENTITY="$SIGNING_IDENTITY"
+          fi
+          scripts/build-app.sh --universal --dmg
+          VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "build/Agent Radar.app/Contents/Info.plist")
+          DMG="Agent-Radar-$VERSION-${{ github.run_number }}.dmg"
+          mv "build/Agent-Radar-$VERSION.dmg" "$DMG"
+          echo "DMG=$DMG" >> "$GITHUB_ENV"
+
+      - name: Notarize the DMG
+        if: env.HAS_SIGNING == 'true'
+        env:
+          NOTARY_API_KEY: ${{ secrets.NOTARY_API_KEY }}
+          NOTARY_API_KEY_ID: ${{ vars.NOTARY_API_KEY_ID }}
+          NOTARY_API_ISSUER_ID: ${{ vars.NOTARY_API_ISSUER_ID }}
+        run: |
+          echo "$NOTARY_API_KEY" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          xcrun notarytool submit "$DMG" --wait \
+            --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_API_KEY_ID" --issuer "$NOTARY_API_ISSUER_ID"
+          xcrun stapler staple "$DMG"
+          rm "$RUNNER_TEMP/notary.p8"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.DMG }}
+          path: ${{ env.DMG }}
+          if-no-files-found: error
+
+      - name: Remove the signing keychain
+        if: always() && env.HAS_SIGNING == 'true'
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true

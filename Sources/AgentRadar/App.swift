@@ -1,0 +1,127 @@
+import AppKit
+import SwiftUI
+import RadarKit
+
+@main
+struct AgentRadarApp: App {
+  @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+  @StateObject private var store = RadarStore()
+
+  init() {
+    CommandLineMode.runIfRequested()
+  }
+
+  var body: some Scene {
+    MenuBarExtra {
+      MenuContent(store: store)
+    } label: {
+      MenuBarLabel(count: store.sections.attentionCount)
+    }
+    .menuBarExtraStyle(.window)
+
+    Settings {
+      SettingsView()
+    }
+  }
+}
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+  func applicationDidFinishLaunching(_ notification: Notification) {
+    NSApp.setActivationPolicy(.accessory)
+    ClaudeHooks(paths: .standard).updateScriptIfInstalled()
+  }
+}
+
+/// `--dump`, `--install-claude-hooks` and `--uninstall-claude-hooks` run without the UI, for scripts and checks.
+enum CommandLineMode {
+  static func runIfRequested() {
+    let args = CommandLine.arguments
+    if args.contains("--dump") {
+      print(DumpFormatter.format(Radar().scan()))
+      exit(0)
+    }
+    let install = args.contains("--install-claude-hooks")
+    if install || args.contains("--uninstall-claude-hooks") {
+      let hooks = ClaudeHooks(paths: .standard)
+      do {
+        if install { try hooks.install() } else { try hooks.uninstall() }
+        print("\(install ? "Installed" : "Removed") the Agent Radar hooks in \(hooks.settingsURL.path)")
+        exit(0)
+      } catch {
+        FileHandle.standardError.write(Data("\(error.localizedDescription)\n".utf8))
+        exit(1)
+      }
+    }
+  }
+}
+
+/// Rescans every few seconds on a background queue and publishes the result.
+@MainActor
+final class RadarStore: ObservableObject {
+  @Published private(set) var sections = WorkspaceSections()
+  @Published private(set) var lastScan: Date?
+
+  private let queue = DispatchQueue(label: "agent-radar.scan", qos: .utility)
+  private let radar = Radar()
+  private var timer: Timer?
+  private var scanning = false
+
+  static let interval: TimeInterval = 3
+
+  init() {
+    refresh()
+    timer = Timer.scheduledTimer(withTimeInterval: Self.interval, repeats: true) { [weak self] _ in
+      Task { @MainActor in self?.refresh() }
+    }
+  }
+
+  func refresh() {
+    guard !scanning else { return }
+    scanning = true
+    let radar = self.radar
+    // Terminal sessions have no unread state of their own: a session counts as seen while its Terminal tab is
+    // in front. Only asked when there are terminal sessions, so nobody else gets Terminal's permission prompt.
+    let frontTTY = sections.terminal.isEmpty ? nil : TerminalApp.frontTTY()
+    queue.async {
+      if let frontTTY { radar.markTerminalSeen(tty: frontTTY) }
+      let result = radar.scan()
+      Task { @MainActor in
+        self.sections = result
+        self.lastScan = Date()
+        self.scanning = false
+      }
+    }
+  }
+}
+
+struct MenuBarLabel: View {
+  let count: Int
+
+  var body: some View {
+    if count > 0 {
+      Label("\(count)", systemImage: "bubble.left.and.exclamationmark.bubble.right.fill")
+        .labelStyle(.titleAndIcon)
+    } else {
+      Image(systemName: "bubble.left.and.bubble.right")
+    }
+  }
+}
+
+enum DumpFormatter {
+  static func format(_ sections: WorkspaceSections) -> String {
+    var lines = ["Needs attention: \(sections.attentionCount)"]
+    for (title, list) in [("Active", sections.active), ("Terminal", sections.terminal),
+                          ("Closed with conversations", sections.closedWithConversations), ("Recent", sections.recent)] {
+      lines.append("\n== \(title)")
+      for ws in list {
+        let age = ws.lastActivity.map { AgeFormatter.short(since: $0) } ?? "-"
+        lines.append("\(ws.name)  [\(ws.id)]  attention=\(ws.attentionCount) working=\(ws.workingCount) total=\(ws.conversations.count) last=\(age)")
+        for c in ws.foldoutConversations {
+          let age = c.lastActivity.map { AgeFormatter.short(since: $0) } ?? "-"
+          lines.append("    \(c.state)  \(age)  \(c.title)  (\(c.id))")
+        }
+      }
+    }
+    return lines.joined(separator: "\n")
+  }
+}

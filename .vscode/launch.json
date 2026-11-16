@@ -1,0 +1,24 @@
+{
+  "configurations": [
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:agent-radar}",
+      "name": "Debug AgentRadar",
+      "target": "AgentRadar",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug AgentRadar"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:agent-radar}",
+      "name": "Release AgentRadar",
+      "target": "AgentRadar",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release AgentRadar"
+    }
+  ]
+}
