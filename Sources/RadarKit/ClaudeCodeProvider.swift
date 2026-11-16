@@ -5,6 +5,7 @@ import Foundation
 /// Sources (all undocumented internals of Claude Code; keep the knowledge about them in this file):
 /// - VS Code global state, key `Anthropic.claude-code`:
 ///   - `sessionUnread:<first workspace folder>`: the session IDs with an unread reply (the orange tab dot).
+///     The extension misses replies that finish in a visible tab of an unfocused window; `VSCodeSeen` adds those.
 ///   - `hiddenSessionIds`: archived sessions. They are left out unless they are waiting, unread or working.
 /// - Workspace state, key `Anthropic.claude-code`, member `panelTabSessions`: the conversation tabs that were
 ///   open in that workspace, with their titles.
@@ -22,6 +23,7 @@ public final class ClaudeCodeProvider: ConversationProvider {
   private var titleCache: [String: TitleCacheEntry] = [:]
   private var hostCache: [Int: (host: TerminalHost, tty: String?)] = [:]
   private let seen: TerminalSeen
+  private let vscodeSeen: VSCodeSeen
   private let hostResolver: (Int) -> (host: TerminalHost, tty: String?)
 
   /// `hostResolver` finds the app and tty of a terminal session's process; replaceable for tests.
@@ -32,6 +34,7 @@ public final class ClaudeCodeProvider: ConversationProvider {
   init(paths: RadarPaths, hostResolver: @escaping (Int) -> (host: TerminalHost, tty: String?)) {
     self.paths = paths
     self.seen = TerminalSeen(paths: paths)
+    self.vscodeSeen = VSCodeSeen(paths: paths)
     self.hostResolver = hostResolver
   }
 
@@ -68,8 +71,15 @@ public final class ClaudeCodeProvider: ConversationProvider {
     let inVSCode = live.filter { $0.isExtension || $0.host == .vscode }
     for ws in workspaces {
       let tabs = (ws.extensionState[Self.extensionKey]?["panelTabSessions"] as? [JSONObject]) ?? []
-      let unread = Set((global["sessionUnread:\(ws.key)"] as? [String]) ?? [])
       let liveHere = inVSCode.filter { Self.workspaceKey(forFolder: $0.cwd, among: keys) == ws.key }
+      // The extension's unread dot, plus replies that finished while VS Code wasn't in front, which the extension
+      // misses. TODO: drop the second part when https://github.com/anthropics/claude-code/issues/110457 is fixed
+      // (https://github.com/WebHare/agent-radar/issues/3).
+      let unread = Set((global["sessionUnread:\(ws.key)"] as? [String]) ?? [])
+        .union(liveHere.filter {
+          !$0.waiting && VSCodeSeen.isUnread(idle: !$0.busy, idleSince: $0.statusSince, startedAt: $0.startedAt,
+                                             lastFront: vscodeSeen.lastFront)
+        }.map(\.sessionId))
       result.workspaces[ws.key] = Self.merge(tabs: tabs, unread: unread, live: liveHere, waiting: waiting,
                                              archived: archived).map { finish($0, transcripts) }
     }
@@ -88,6 +98,10 @@ public final class ClaudeCodeProvider: ConversationProvider {
       }
     }
     return result
+  }
+
+  public func markVSCodeFront() {
+    vscodeSeen.markFront()
   }
 
   public func markTerminalSeen(tty: String) {

@@ -66,6 +66,8 @@ Read the relevant section before changing behaviour, and update it in the same c
 - **Keep [doc/claude-hooks.md](doc/claude-hooks.md) in sync** with `ClaudeHooks.swift` and the event handling in
   `ClaudeCodeProvider.swift`: users read it to decide whether to let the app change their settings.
 - **Commits:** `feat:` / `fix:` / `chore:` plus a sentence.
+- **English on GitHub.** Write all issues, pull requests, comments, reviews and other GitHub communication in
+  English, also when the user talks to you in another language.
 - **Offer to commit.** When a change is finished and looks ready to commit (tests pass, docs updated), ask the
   user which they want: nothing yet, commit, commit and open a PR, or commit, open a PR and automerge it.
   - Commit only your own changes; leave changes from other sessions in the working tree alone.

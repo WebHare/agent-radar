@@ -15,6 +15,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Settings to launch Agent Radar at login, to choose what the number in the menu bar counts (waiting and unread,
   waiting only, or no number), and to hide the Terminal, Closed and Recent sections of the menu.
 
+### Fixed
+
+- A VS Code conversation whose reply finished while VS Code wasn't the frontmost app now counts as unread until
+  you switch back to VS Code, even when the Claude Code extension shows a gray dot for it.
+
 ### Changed
 
 - Clicking a conversation or opening a workspace now also closes the menu, instead of leaving it open on top of
