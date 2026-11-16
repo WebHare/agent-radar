@@ -68,11 +68,15 @@ Read the relevant section before changing behaviour, and update it in the same c
 - **Commits:** `feat:` / `fix:` / `chore:` plus a sentence.
 - **English on GitHub.** Write all issues, pull requests, comments, reviews and other GitHub communication in
   English, also when the user talks to you in another language.
+- **Every change goes through a PR.** `main` only accepts pull requests that pass CI and are up to date with
+  `main`; never commit to or push `main` directly.
 - **Offer to commit.** When a change is finished and looks ready to commit (tests pass, docs updated), ask the
-  user which they want: nothing yet, commit, commit and open a PR, or commit, open a PR and automerge it.
+  user which they want: nothing yet, commit on a feature branch, commit and open a PR, or commit, open a PR and
+  automerge it.
   - Commit only your own changes; leave changes from other sessions in the working tree alone.
-  - For a PR, put the commit on a `feature/` branch off an up-to-date `main` and open it with `gh pr create`.
-  - Automerge means `gh pr merge --auto`, so GitHub merges it once CI passes.
+  - Put the commit on a `feature/` branch off an up-to-date `main`, and open the PR with `gh pr create`.
+  - Automerge means `gh pr merge --auto`, so GitHub merges it once CI passes. When `main` moves on before
+    that, the PR waits until it's brought up to date (`gh pr update-branch`).
 
 ## Checking against real data
 
