@@ -39,9 +39,11 @@ What Agent Radar does and the rules it follows. See [CLAUDE.md](../CLAUDE.md) fo
     subtitle.
   - Comes from Claude Code's own session state, so it works without the optional hooks.
 - **Open**: the conversation is open (in a VS Code tab, or running in a terminal) with nothing pending.
-- Archived conversations (archived in the Claude Code extension) are left out, unless they are running.
+- Archived conversations (archived in the Claude Code extension) are left out, unless they are waiting for
+  input, unread or working.
   - *Why:* archiving is how the user says they're done with a conversation; counting them made the numbers
-    meaningless.
+    meaningless. But an archived conversation that still needs the user (or is still busy) must not disappear.
+  - An archived conversation that is merely open (running with nothing pending) is left out.
 
 ## Waiting for input
 

@@ -5,7 +5,7 @@ import Foundation
 /// Sources (all undocumented internals of Claude Code; keep the knowledge about them in this file):
 /// - VS Code global state, key `Anthropic.claude-code`:
 ///   - `sessionUnread:<first workspace folder>`: the session IDs with an unread reply (the orange tab dot).
-///   - `hiddenSessionIds`: archived sessions. They are left out unless they are running.
+///   - `hiddenSessionIds`: archived sessions. They are left out unless they are waiting, unread or working.
 /// - Workspace state, key `Anthropic.claude-code`, member `panelTabSessions`: the conversation tabs that were
 ///   open in that workspace, with their titles.
 /// - `~/.claude/sessions/<pid>.json`: running sessions with their folder, `entrypoint` (`claude-vscode` for the
@@ -111,14 +111,14 @@ public final class ClaudeCodeProvider: ConversationProvider {
   }
 
   /// Combines the sources into one conversation per session. Titles come from the tabs and may be empty.
-  /// Archived conversations are left out, unless they're running.
+  /// Archived conversations are left out, unless they're waiting, unread or working.
   static func merge(tabs: [JSONObject], unread: Set<String>, live: [LiveSession], waiting: Set<String>,
                     archived: Set<String> = []) -> [Conversation] {
     let liveById = Dictionary(live.map { ($0.sessionId, $0) }, uniquingKeysWith: { a, _ in a })
     var titles: [String: String] = [:]
     var order: [String] = []
     func add(_ id: String) {
-      guard titles[id] == nil, !archived.contains(id) || liveById[id] != nil else { return }
+      guard titles[id] == nil else { return }
       titles[id] = ""
       order.append(id)
     }
@@ -131,7 +131,7 @@ public final class ClaudeCodeProvider: ConversationProvider {
     unread.sorted().forEach(add)
     live.map(\.sessionId).forEach(add)
 
-    return order.map { id in
+    return order.compactMap { id in
       let state: ConversationState
       if let session = liveById[id], session.waiting || waiting.contains(id) {
         state = .waiting
@@ -142,6 +142,7 @@ public final class ClaudeCodeProvider: ConversationProvider {
       } else {
         state = .open
       }
+      if state == .open && archived.contains(id) { return nil }
       let target: ConversationTarget? = if let session = liveById[id], !session.isExtension {
         .terminal(host: .vscode, tty: session.tty)
       } else {

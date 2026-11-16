@@ -3,13 +3,19 @@ import Testing
 @testable import RadarKit
 
 @Suite struct ArchivedTests {
-  @Test func archivedConversationsAreLeftOutUnlessRunning() {
+  @Test func archivedConversationsAreListedOnlyWithAnInterestingState() {
     let tabs: [JSONObject] = [["sessionId": "kept", "title": "Kept"], ["sessionId": "archived", "title": "Old"],
-                              ["sessionId": "archivedLive", "title": "Running"]]
-    let live = [ClaudeCodeProvider.LiveSession(sessionId: "archivedLive", cwd: "/w", busy: true)]
+                              ["sessionId": "archivedWorking", "title": "Running"],
+                              ["sessionId": "archivedIdle", "title": "Idle"]]
+    var waiting = ClaudeCodeProvider.LiveSession(sessionId: "archivedWaiting", cwd: "/w", busy: false)
+    waiting.waiting = true
+    let live = [ClaudeCodeProvider.LiveSession(sessionId: "archivedWorking", cwd: "/w", busy: true),
+                ClaudeCodeProvider.LiveSession(sessionId: "archivedIdle", cwd: "/w", busy: false), waiting]
     let result = ClaudeCodeProvider.merge(tabs: tabs, unread: ["archivedUnread"], live: live, waiting: [],
-                                          archived: ["archived", "archivedLive", "archivedUnread"])
-    #expect(result.map(\.id) == ["kept", "archivedLive"])
+                                          archived: ["archived", "archivedWorking", "archivedIdle",
+                                                     "archivedUnread", "archivedWaiting"])
+    #expect(result.map(\.id) == ["kept", "archivedWorking", "archivedUnread", "archivedWaiting"])
+    #expect(result.map(\.state) == [.open, .working, .unread, .waiting])
   }
 }
 
