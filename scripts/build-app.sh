@@ -3,14 +3,24 @@
 #   --universal  builds for both Apple silicon and Intel (slower; used for the DMG in CI)
 #   --dmg        also creates build/Agent-Radar-<version>.dmg
 #   --install    copies the app to ~/Applications and (re)starts it
-# Signing: ad-hoc by default. Set SIGN_IDENTITY (e.g. "Developer ID Application") to sign the app and the DMG
-# with that certificate, with the hardened runtime and a secure timestamp, as notarization requires.
+# Signing: with SIGN_IDENTITY (e.g. "Developer ID Application") if set, otherwise with the first Developer ID
+# Application or Apple Development certificate in the keychain, otherwise ad-hoc. SIGN_IDENTITY=- forces ad-hoc.
+# A certificate signs the app and the DMG with the hardened runtime and a secure timestamp, as notarization
+# requires. Unlike ad-hoc signing, it keeps macOS privacy permissions (such as Desktop access) across builds.
 set -e
 
 cd "$(dirname "$0")/.."
 name="Agent Radar"
 app="build/$name.app"
-identity="${SIGN_IDENTITY:--}"
+if [ -n "${SIGN_IDENTITY+set}" ]; then
+  identity="${SIGN_IDENTITY:--}"
+else
+  identities=$(security find-identity -v -p codesigning 2>/dev/null || true)
+  identity=$(printf '%s\n' "$identities" | sed -n 's/.*"\(Developer ID Application: .*\)"$/\1/p' | head -n 1)
+  [ -n "$identity" ] ||
+    identity=$(printf '%s\n' "$identities" | sed -n 's/.*"\(Apple Development: .*\)"$/\1/p' | head -n 1)
+  [ -n "$identity" ] || identity=-
+fi
 
 universal=false dmg=false install=false
 for arg in "$@"; do
