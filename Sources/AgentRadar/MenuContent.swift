@@ -136,14 +136,11 @@ struct WorkspaceRow: View {
     }
   }
 
+  /// Clicking a row always goes to its workspace; only resting on it opens the foldout.
   private func click() {
     hoverTask?.cancel()
-    if hasFoldout {
-      foldout = foldout == workspace.id ? nil : workspace.id
-    } else {
-      dismissMenu()
-      Opener.open(workspace)
-    }
+    dismissMenu()
+    Opener.open(workspace)
   }
 
   /// Resting on a row opens its foldout, closing any other; resting on a row without conversations closes it.

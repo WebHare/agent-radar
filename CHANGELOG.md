@@ -17,5 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Clicking a conversation or opening a workspace now also closes the menu, instead of leaving it open on top of
   the window you went to.
+- Clicking a workspace in the menu now opens it right away, also when it has conversations. Rest the pointer on
+  it to see its conversations.
 - Archived conversations are now listed while they wait for input, have an unread reply or are working, so a
   conversation that still needs you doesn't disappear when you archive it.

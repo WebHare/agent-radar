@@ -107,18 +107,20 @@ What Agent Radar does and the rules it follows. See [CLAUDE.md](../CLAUDE.md) fo
   "3h", "2d", "5w", "1y"), with the exact time on hover.
   - A conversation changes when Claude Code writes to its transcript: a message, a tool call, a title.
 - An entry that needs the user lists those conversations by title under it, marked waiting or unread.
-- Resting the pointer on an entry with conversations, or clicking it, opens a foldout beside the menu:
+- Resting the pointer on an entry with conversations opens a foldout beside the menu:
   - It lists all the entry's conversations with their state and age: those that need the user first, then the
     most recently changed.
   - Clicking a conversation goes straight to it.
   - For a VS Code workspace, the foldout also has an item to open the workspace itself.
   - Resting on another entry switches the foldout to that entry; resting on an entry without conversations
     closes it.
-- Clicking an entry without conversations (such as a recent workspace) opens it in VS Code right away.
+- Clicking an entry opens its workspace right away, whether or not it has conversations.
+  - *Why:* going to the workspace is the common case; the foldout is one hover away.
+  - For a VS Code workspace this opens it in VS Code (or brings its window to the front); for a terminal folder
+    it brings its most relevant session to the front.
 - Whenever a click takes the user to a conversation or workspace (in the menu or in a foldout), the menu and
   its foldout close.
   - *Why:* the menu otherwise stays open on top of the window the user just went to.
-  - Clicking an entry with conversations only opens or closes its foldout, so the menu stays open.
 - Clicking a VS Code conversation opens its workspace (brings its window to the front if already open) and then
   the conversation.
 - A VS Code workspace is a folder or a `.code-workspace` file; it is shown by the folder or file name, without
