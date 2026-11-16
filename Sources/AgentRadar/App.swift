@@ -6,6 +6,7 @@ import RadarKit
 struct AgentRadarApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
   @StateObject private var store = RadarStore()
+  @StateObject private var menuSettings = MenuSettingsStore()
 
   init() {
     CommandLineMode.runIfRequested()
@@ -13,14 +14,15 @@ struct AgentRadarApp: App {
 
   var body: some Scene {
     MenuBarExtra {
-      MenuContent(store: store)
+      MenuContent(store: store, settings: menuSettings.settings)
     } label: {
-      MenuBarLabel(count: store.sections.attentionCount)
+      MenuBarLabel(count: menuSettings.settings.menuBarCount(for: store.sections),
+                   showsNumber: menuSettings.settings.menuBarShowsNumber)
     }
     .menuBarExtraStyle(.window)
 
     Settings {
-      SettingsView()
+      SettingsView(menuSettings: menuSettings)
     }
   }
 }
@@ -94,13 +96,26 @@ final class RadarStore: ObservableObject {
   }
 }
 
+/// The menu and menu bar choices from Settings, saved in the user defaults.
+@MainActor
+final class MenuSettingsStore: ObservableObject {
+  @Published var settings: MenuSettings {
+    didSet { if settings != oldValue { settings.save(to: .standard) } }
+  }
+
+  init() { settings = MenuSettings(defaults: .standard) }
+}
+
 struct MenuBarLabel: View {
   let count: Int
+  let showsNumber: Bool
 
   var body: some View {
-    if count > 0 {
+    if count > 0 && showsNumber {
       Label("\(count)", systemImage: "bubble.left.and.exclamationmark.bubble.right.fill")
         .labelStyle(.titleAndIcon)
+    } else if count > 0 {
+      Image(systemName: "bubble.left.and.exclamationmark.bubble.right.fill")
     } else {
       Image(systemName: "bubble.left.and.bubble.right")
     }

@@ -4,6 +4,7 @@ import RadarKit
 
 struct MenuContent: View {
   @ObservedObject var store: RadarStore
+  let settings: MenuSettings
   /// The workspace whose foldout is open.
   @State private var foldout: String?
   /// The window the menu bar item shows the menu in, so going somewhere can close it.
@@ -13,10 +14,11 @@ struct MenuContent: View {
     VStack(alignment: .leading, spacing: 0) {
       ScrollView {
         VStack(alignment: .leading, spacing: 10) {
-          section("Active workspaces", store.sections.active, empty: "No VS Code windows with Claude Code open")
-          section("Terminal sessions", store.sections.terminal, empty: nil)
-          section("Closed workspaces with open conversations", store.sections.closedWithConversations, empty: nil)
-          section("Recent workspaces", store.sections.recent, empty: nil)
+          let sections = settings.visibleSections(of: store.sections)
+          section("Active workspaces", sections.active, empty: "No VS Code windows with Claude Code open")
+          section("Terminal sessions", sections.terminal, empty: nil)
+          section("Closed workspaces with open conversations", sections.closedWithConversations, empty: nil)
+          section("Recent workspaces", sections.recent, empty: nil)
         }
         .padding(10)
       }
