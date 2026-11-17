@@ -152,8 +152,10 @@ public protocol ConversationProvider {
   func scan(workspaces: [WorkspaceInfo], globalState: [String: JSONObject]) -> ProviderResult
   /// The user is looking at the terminal tab with this tty: its sessions count as seen.
   func markTerminalSeen(tty: String)
-  /// VS Code is the frontmost app: replies that finished in its conversations count as seen.
-  func markVSCodeFront()
+  /// The user surely sees every VS Code conversation's latest reply now.
+  func markVSCodeSeen()
+  /// The user marked these conversations as read, or opened them from the menu.
+  func markRead(_ conversationIds: [String])
 }
 
 /// The three sections of the menu.

@@ -77,6 +77,15 @@ final class RadarStore: ObservableObject {
     }
   }
 
+  /// The user marked these conversations as read, or opened them from the menu.
+  func markRead(_ conversations: [Conversation]) {
+    let ids = conversations.map(\.id)
+    guard !ids.isEmpty else { return }
+    let radar = self.radar
+    queue.async { radar.markRead(ids) }
+    refresh()
+  }
+
   func refresh() {
     guard !scanning else { return }
     scanning = true
@@ -84,8 +93,8 @@ final class RadarStore: ObservableObject {
     // Terminal sessions have no unread state of their own: a session counts as seen while its Terminal tab is
     // in front. Only asked when there are terminal sessions, so nobody else gets Terminal's permission prompt.
     let frontTTY = sections.terminal.isEmpty ? nil : TerminalApp.frontTTY()
-    // The Claude Code extension misses replies that finish in an unfocused window, so the app also counts a
-    // reply as unread until VS Code was in front. TODO: remove when
+    // The Claude Code extension misses replies that finish in an unfocused window, so the app counts a reply as
+    // unread unless it's sure the user saw it, for which VS Code has to be in front. TODO: remove when
     // https://github.com/anthropics/claude-code/issues/110457 is fixed (https://github.com/WebHare/agent-radar/issues/3).
     let vscodeFront = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Opener.vscodeBundleID
     queue.async {

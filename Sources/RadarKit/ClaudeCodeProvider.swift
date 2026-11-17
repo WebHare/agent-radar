@@ -72,17 +72,22 @@ public final class ClaudeCodeProvider: ConversationProvider {
     for ws in workspaces {
       let tabs = (ws.extensionState[Self.extensionKey]?["panelTabSessions"] as? [JSONObject]) ?? []
       let liveHere = inVSCode.filter { Self.workspaceKey(forFolder: $0.cwd, among: keys) == ws.key }
-      // The extension's unread dot, plus replies that finished while VS Code wasn't in front, which the extension
-      // misses. TODO: drop the second part when https://github.com/anthropics/claude-code/issues/110457 is fixed
-      // (https://github.com/WebHare/agent-radar/issues/3).
-      let unread = Set((global["sessionUnread:\(ws.key)"] as? [String]) ?? [])
-        .union(liveHere.filter {
-          !$0.waiting && VSCodeSeen.isUnread(idle: !$0.busy, idleSince: $0.statusSince, startedAt: $0.startedAt,
-                                             lastFront: vscodeSeen.lastFront)
-        }.map(\.sessionId))
+      // The extension's unread dot, minus what the user marked as read in the menu since, plus replies the
+      // extension misses: those the app isn't sure the user saw. TODO: drop the last part when
+      // https://github.com/anthropics/claude-code/issues/110457 is fixed (https://github.com/WebHare/agent-radar/issues/3).
+      let extensionUnread = ((global["sessionUnread:\(ws.key)"] as? [String]) ?? []).filter { id in
+        guard let read = vscodeSeen.read[id] else { return true }
+        let reply = liveHere.first { $0.sessionId == id }?.statusSince ?? transcripts[id]?.modified ?? .distantFuture
+        return reply > read
+      }
+      let unread = Set(extensionUnread).union(liveHere.filter {
+        !$0.waiting && VSCodeSeen.isUnread(idle: !$0.busy, idleSince: $0.statusSince, startedAt: $0.startedAt,
+                                           seenSince: vscodeSeen.seenSince($0.sessionId))
+      }.map(\.sessionId))
       result.workspaces[ws.key] = Self.merge(tabs: tabs, unread: unread, live: liveHere, waiting: waiting,
                                              archived: archived).map { finish($0, transcripts) }
     }
+    vscodeSeen.prune(keeping: Set(result.workspaces.values.flatMap { $0.map(\.id) }))
 
     for session in live where !session.isExtension && session.host != .vscode {
       let unread = TerminalSeen.isUnread(idle: !session.busy, idleSince: session.statusSince,
@@ -100,8 +105,13 @@ public final class ClaudeCodeProvider: ConversationProvider {
     return result
   }
 
-  public func markVSCodeFront() {
-    vscodeSeen.markFront()
+  public func markVSCodeSeen() {
+    vscodeSeen.markAllSeen()
+  }
+
+  public func markRead(_ conversationIds: [String]) {
+    vscodeSeen.markRead(conversationIds)
+    seen.markSeen(conversationIds)
   }
 
   public func markTerminalSeen(tty: String) {
