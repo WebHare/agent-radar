@@ -9,6 +9,7 @@ struct MenuContent: View {
   @State private var foldout: String?
   /// The window the menu bar item shows the menu in, so going somewhere can close it.
   @State private var menuWindow: NSWindow?
+  @Environment(\.openSettings) private var openSettings
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
@@ -29,12 +30,8 @@ struct MenuContent: View {
       HStack {
         Button("Refresh") { store.refresh() }
         Spacer()
-        SettingsLink {
-          Text("Settings…")
-        }
-        .keyboardShortcut(",")
-        // An accessory app's settings window opens behind other apps unless the app is activated.
-        .simultaneousGesture(TapGesture().onEnded { NSApp.activate(ignoringOtherApps: true) })
+        Button("Settings…") { showSettings() }
+          .keyboardShortcut(",")
         Button("Quit") { NSApp.terminate(nil) }
           .keyboardShortcut("q")
       }
@@ -48,6 +45,22 @@ struct MenuContent: View {
       foldout = nil
       menuWindow?.close()
     })
+  }
+
+  /// Opens the settings window, or brings it back to the front when it's already open behind other apps.
+  /// `SettingsLink` alone leaves an already open window where it is, and an accessory app isn't activated
+  /// by clicking its menu, so the window is raised explicitly.
+  private func showSettings() {
+    menuWindow?.close()
+    NSApp.activate(ignoringOtherApps: true)
+    openSettings()
+    // The window may only exist after openSettings has been handled.
+    DispatchQueue.main.async {
+      for window in NSApp.windows where window.identifier?.rawValue.contains("Settings") == true {
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+      }
+    }
   }
 
   @ViewBuilder

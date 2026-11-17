@@ -152,6 +152,8 @@ What Agent Radar does and the rules it follows. See [CLAUDE.md](../CLAUDE.md) fo
 - A VS Code window only counts as open when the Claude Code extension is active in it.
   - *Why:* VS Code keeps no live list of its windows on disk; the extension does.
 - The menu has **Refresh**, **Settings…** and **Quit**.
+  - **Settings…** always brings the settings window to the front, also when it's already open behind
+    another app's windows.
 
 ## Settings
 

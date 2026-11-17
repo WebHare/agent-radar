@@ -17,6 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Settings…** now brings the settings window to the front when it was already open behind another app.
 - A VS Code conversation whose reply finished while VS Code wasn't the frontmost app now counts as unread until
   you switch back to VS Code, even when the Claude Code extension shows a gray dot for it.
 
