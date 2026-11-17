@@ -54,7 +54,7 @@ jobs:
           if [ "$HAS_SIGNING" = true ]; then
             export SIGN_IDENTITY="$SIGNING_IDENTITY"
           fi
-          scripts/build-app.sh --universal --dmg
+          BUILD_NUMBER=${{ github.run_number }} scripts/build-app.sh --universal --dmg --channel=dmg
           VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "build/Agent Radar.app/Contents/Info.plist")
           DMG="Agent-Radar-$VERSION-${{ github.run_number }}.dmg"
           mv "build/Agent-Radar-$VERSION.dmg" "$DMG"

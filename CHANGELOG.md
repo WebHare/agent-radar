@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The menu lists active, terminal, closed and recent workspaces, with a foldout of each workspace's
   conversations. Clicking a conversation goes straight to it.
 - Optional Claude Code hooks, switched on in Settings, to see when the VS Code extension waits for input.
+- An About panel, opened from Settings, with the version, build number and build date.
 - Settings to launch Agent Radar at login, to choose what the number in the menu bar counts (waiting and unread,
   waiting only, or no number), and to hide the Terminal, Closed and Recent sections of the menu.
 

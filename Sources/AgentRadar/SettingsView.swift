@@ -88,6 +88,12 @@ struct SettingsView: View {
       } header: {
         Text("Claude Code")
       }
+
+      Section {
+        LabeledContent("Version \(BuildInfo.current.version ?? "unknown")") {
+          Button("About Agent Radar") { AboutPanel.show() }
+        }
+      }
     }
     .formStyle(.grouped)
     .frame(width: 460)
@@ -158,5 +164,21 @@ final class LaunchAtLoginModel: ObservableObject {
       lastError = "Couldn't change Login Items: \(error.localizedDescription)"
     }
     reload()
+  }
+}
+
+/// macOS's standard About panel, with where the build comes from and when it was built.
+@MainActor
+enum AboutPanel {
+  static func show() {
+    let centered = NSMutableParagraphStyle()
+    centered.alignment = .center
+    let details = NSAttributedString(string: BuildInfo.current.aboutDetails(), attributes: [
+      .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+      .foregroundColor: NSColor.secondaryLabelColor,
+      .paragraphStyle: centered,
+    ])
+    NSApp.activate(ignoringOtherApps: true)
+    NSApp.orderFrontStandardAboutPanel(options: [.credits: details])
   }
 }
