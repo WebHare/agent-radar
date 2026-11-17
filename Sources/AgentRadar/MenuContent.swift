@@ -79,7 +79,7 @@ struct MenuContent: View {
             .padding(.horizontal, 6)
         }
         ForEach(workspaces) { workspace in
-          WorkspaceRow(workspace: workspace, foldout: $foldout)
+          WorkspaceRow(workspace: workspace, foldout: $foldout, store: store)
         }
       }
     }
@@ -89,6 +89,7 @@ struct MenuContent: View {
 struct WorkspaceRow: View {
   let workspace: Workspace
   @Binding var foldout: String?
+  let store: RadarStore
   @Environment(\.dismissMenu) private var dismissMenu
   @State private var hoverTask: Task<Void, Never>?
 
@@ -137,16 +138,16 @@ struct WorkspaceRow: View {
         }
       }
       .help(workspace.openTarget.path)
+      .contextMenu { MarkAllAsReadButton(workspace: workspace, store: store) }
       .popover(isPresented: isFoldedOut, arrowEdge: .trailing) {
-        ConversationFoldout(workspace: workspace, dismissMenu: dismissMenu)
+        ConversationFoldout(workspace: workspace, store: store, dismissMenu: dismissMenu)
       }
 
       ForEach(workspace.attentionConversations) { conversation in
-        HoverButton(action: { dismissMenu(); Opener.open(conversation, in: workspace) }) {
+        ConversationButton(conversation: conversation, workspace: workspace, store: store) {
           ConversationLine(conversation: conversation)
             .padding(.leading, 24)
         }
-        .help(conversation.state.helpText)
       }
     }
   }
@@ -195,6 +196,7 @@ struct WorkspaceRow: View {
 /// closing the menu.
 struct ConversationFoldout: View {
   let workspace: Workspace
+  let store: RadarStore
   let dismissMenu: DismissMenuAction
 
   var body: some View {
@@ -207,17 +209,26 @@ struct ConversationFoldout: View {
       ScrollView {
         VStack(alignment: .leading, spacing: 0) {
           ForEach(workspace.foldoutConversations) { conversation in
-            HoverButton(action: { dismissMenu(); Opener.open(conversation, in: workspace) }) {
+            ConversationButton(conversation: conversation, workspace: workspace, store: store,
+                               dismissMenu: dismissMenu) {
               ConversationLine(conversation: conversation, showAge: true)
             }
-            .help(conversation.state.helpText)
           }
         }
       }
       .frame(maxHeight: 420)
       .fixedSize(horizontal: false, vertical: true)
-      if workspace.kind == .vscode {
+      let unread = workspace.conversations.filter { $0.state == .unread }
+      if workspace.kind == .vscode || !unread.isEmpty {
         Divider().padding(.vertical, 2)
+      }
+      if !unread.isEmpty {
+        HoverButton(action: { store.markRead(unread) }) {
+          Label("Mark all as read", systemImage: "checkmark.circle")
+            .font(.callout)
+        }
+      }
+      if workspace.kind == .vscode {
         HoverButton(action: { dismissMenu(); Opener.open(workspace) }) {
           Label(workspace.isOpen ? "Show workspace in VS Code" : "Open workspace in VS Code", systemImage: "arrow.up.forward.app")
             .font(.callout)
@@ -226,6 +237,46 @@ struct ConversationFoldout: View {
     }
     .padding(8)
     .frame(width: 340)
+  }
+}
+
+/// A conversation in the menu or a foldout. Clicking it goes straight to it, which also counts as reading it;
+/// right-clicking an unread one offers to mark it as read without going there.
+struct ConversationButton<Label: View>: View {
+  let conversation: Conversation
+  let workspace: Workspace
+  let store: RadarStore
+  var dismissMenu: DismissMenuAction?
+  @ViewBuilder let label: () -> Label
+  @Environment(\.dismissMenu) private var environmentDismissMenu
+
+  var body: some View {
+    HoverButton(action: open, label: label)
+      .help(conversation.state.helpText)
+      .contextMenu {
+        if conversation.state == .unread {
+          Button("Mark as Read") { store.markRead([conversation]) }
+        }
+      }
+  }
+
+  private func open() {
+    (dismissMenu ?? environmentDismissMenu)()
+    if conversation.state == .unread { store.markRead([conversation]) }
+    Opener.open(conversation, in: workspace)
+  }
+}
+
+/// Marks all unread conversations of a workspace as read.
+struct MarkAllAsReadButton: View {
+  let workspace: Workspace
+  let store: RadarStore
+
+  var body: some View {
+    let unread = workspace.conversations.filter { $0.state == .unread }
+    if !unread.isEmpty {
+      Button("Mark All as Read") { store.markRead(unread) }
+    }
   }
 }
 
