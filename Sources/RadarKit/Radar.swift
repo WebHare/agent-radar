@@ -65,8 +65,16 @@ public final class Radar: @unchecked Sendable {
     for provider in providers { provider.markTerminalSeen(tty: tty) }
   }
 
-  /// VS Code is the frontmost app now.
+  /// VS Code is the frontmost app now. Only with a single VS Code window open does that mean the user sees its
+  /// conversations; with more, the app can't tell which window they're looking at (see
+  /// https://github.com/WebHare/agent-radar/issues/7).
   public func markVSCodeFront() {
-    for provider in providers { provider.markVSCodeFront() }
+    guard Set(OpenWindows.read(paths: paths).map(\.key)).count <= 1 else { return }
+    for provider in providers { provider.markVSCodeSeen() }
+  }
+
+  /// The user marked these conversations as read, or opened them from the menu.
+  public func markRead(_ conversationIds: [String]) {
+    for provider in providers { provider.markRead(conversationIds) }
   }
 }

@@ -15,12 +15,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - An About panel, opened from Settings, with the version, build number and build date.
 - Settings to launch Agent Radar at login, to choose what the number in the menu bar counts (waiting and unread,
   waiting only, or no number), and to hide the Terminal, Closed and Recent sections of the menu.
+- Mark a conversation as read by right-clicking it in the menu, or all of a workspace's conversations
+  with **Mark all as read** in its foldout. Opening a conversation from the menu also marks it as read.
 
 ### Fixed
 
 - **Settings…** now brings the settings window to the front when it was already open behind another app.
-- A VS Code conversation whose reply finished while VS Code wasn't the frontmost app now counts as unread until
-  you switch back to VS Code, even when the Claude Code extension shows a gray dot for it.
+- A VS Code conversation whose reply finished now counts as unread unless Agent Radar is sure you saw it, even
+  when the Claude Code extension shows a gray dot for it. With several VS Code windows open, Agent Radar can't
+  tell which one you're looking at, so it errs on the side of showing the reply as unread.
 
 ### Changed
 

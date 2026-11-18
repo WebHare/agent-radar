@@ -21,7 +21,7 @@ writes to it, apart from the hooks you can switch on in Settings.
 | Unread and archived VS Code conversations | `globalStorage/state.vscdb`, row `Anthropic.claude-code`, `sessionUnread:<first folder>` and `hiddenSessionIds` |
 | Open VS Code windows | `~/.claude/ide/*.lock` (written per window by the Claude Code extension) |
 | Unread terminal sessions | `~/.agent-radar/terminal-seen.json`: when you last had each session's tab in front |
-| Replies the extension doesn't mark unread | `~/.agent-radar/vscode-front.json`: when VS Code was last the frontmost app (workaround for anthropics/claude-code#110457, see issue #3) |
+| Replies the extension doesn't mark unread | `~/.agent-radar/vscode-front.json`: when the user last surely saw all VS Code conversations (VS Code in front with a single window), and which ones they marked as read (workaround for anthropics/claude-code#110457, see issues #3 and #7) |
 
 A VS Code workspace is identified by its first folder, because that's how the extension keys its state. All of
 these formats are internal to VS Code and Claude Code and may change with an update.
@@ -37,7 +37,7 @@ these formats are internal to VS Code and Claude Code and may change with an upd
   - `VSCodeState.swift`: VS Code's workspace list and open windows.
   - `Processes.swift`: finding the terminal app and tab of a session's process.
   - `TerminalSeen.swift`: unread state for terminal sessions.
-  - `VSCodeSeen.swift`: when VS Code was last in front, for replies the extension doesn't mark unread.
+  - `VSCodeSeen.swift`: which VS Code replies the user surely saw, for replies the extension doesn't mark unread.
   - `OrderedJSON.swift`: JSON editing that keeps the order of the user's settings.json.
   - `BuildInfo.swift`: which kind of build is running (local, DMG, App Store), its number and build date.
 - `Sources/AgentRadar`: the SwiftUI menu bar app (views, and talking to Terminal.app).
