@@ -16,8 +16,8 @@ public final class Radar: @unchecked Sendable {
   }
 
   public func scan() -> WorkspaceSections {
-    var infos = storage.scan()
     let windows = OpenWindows.read(paths: paths)
+    var infos = storage.scan(openFolders: windows.map(\.folders))
     let openKeys = Set(windows.map(\.key))
     for i in infos.indices where openKeys.contains(infos[i].key) {
       infos[i].isOpen = true

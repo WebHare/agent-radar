@@ -45,11 +45,14 @@ final class WorkspaceStorageScanner {
     self.stateKeys = stateKeys
   }
 
-  /// All known local workspaces, one per workspace key (the most recently used wins).
-  func scan() -> [WorkspaceInfo] {
+  /// All known local workspaces, one per workspace key.
+  /// - Parameter openFolders: the folders of each open window. A folder and a .code-workspace file whose first
+  ///   folder it is share a key; the one open in a window wins, otherwise the most recently used one.
+  func scan(openFolders: [[String]] = []) -> [WorkspaceInfo] {
     let storage = paths.vscodeUser.appendingPathComponent("workspaceStorage")
     let fm = FileManager.default
     let dirs = (try? fm.contentsOfDirectory(at: storage, includingPropertiesForKeys: nil)) ?? []
+    let open = Set(openFolders)
     var seen = Set<String>()
     var byKey: [String: WorkspaceInfo] = [:]
 
@@ -63,9 +66,12 @@ final class WorkspaceStorageScanner {
       if cache[name]?.modified != modified {
         cache[name] = CacheEntry(modified: modified, info: Self.readWorkspace(dir: dir, modified: modified, stateKeys: stateKeys))
       }
-      if let info = cache[name]?.info, (byKey[info.key]?.lastUsed ?? .distantPast) < info.lastUsed {
-        byKey[info.key] = info
+      guard let info = cache[name]?.info else { continue }
+      if let current = byKey[info.key] {
+        let (infoOpen, currentOpen) = (open.contains(info.folders), open.contains(current.folders))
+        if infoOpen != currentOpen ? !infoOpen : info.lastUsed <= current.lastUsed { continue }
       }
+      byKey[info.key] = info
     }
     cache = cache.filter { seen.contains($0.key) }
     return Array(byKey.values)
@@ -82,9 +88,9 @@ final class WorkspaceStorageScanner {
     }
     if let file = (meta["workspace"] as? String).flatMap(localFileURL) {
       guard FileManager.default.fileExists(atPath: file.path),
-            let first = firstFolder(ofWorkspaceFile: file) else { return nil }
+            let folders = self.folders(ofWorkspaceFile: file), let first = folders.first else { return nil }
       return WorkspaceInfo(key: first.path, name: workspaceName(file: file, firstFolder: first), openTarget: file,
-                           isOpen: false, lastUsed: modified, extensionState: state)
+                           folders: folders.map(\.path), isOpen: false, lastUsed: modified, extensionState: state)
     }
     return nil
   }
@@ -95,17 +101,19 @@ final class WorkspaceStorageScanner {
     return url.standardizedFileURL
   }
 
-  static func firstFolder(ofWorkspaceFile file: URL) -> URL? {
-    guard let json = JSON.object(contentsOf: file),
-          let folders = json["folders"] as? [JSONObject],
-          let first = folders.first else { return nil }
-    if let path = first["path"] as? String {
-      let url = path.hasPrefix("/") ? URL(fileURLWithPath: path)
-        : file.deletingLastPathComponent().appendingPathComponent(path)
-      return url.standardizedFileURL
+  /// The local folders of a .code-workspace file, or nil when it has none or its first folder isn't local.
+  static func folders(ofWorkspaceFile file: URL) -> [URL]? {
+    guard let json = JSON.object(contentsOf: file), let folders = json["folders"] as? [JSONObject] else { return nil }
+    func url(_ folder: JSONObject) -> URL? {
+      if let path = folder["path"] as? String {
+        let url = path.hasPrefix("/") ? URL(fileURLWithPath: path)
+          : file.deletingLastPathComponent().appendingPathComponent(path)
+        return url.standardizedFileURL
+      }
+      return (folder["uri"] as? String).flatMap(localFileURL)
     }
-    if let uri = first["uri"] as? String { return localFileURL(uri) }
-    return nil
+    guard let first = folders.first, url(first) != nil else { return nil }
+    return folders.compactMap(url)
   }
 
   /// VS Code shows a saved workspace by its file name, and an unsaved one as "Untitled (Workspace)".

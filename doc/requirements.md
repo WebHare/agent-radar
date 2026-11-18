@@ -160,6 +160,12 @@ What Agent Radar does and the rules it follows. See [CLAUDE.md](../CLAUDE.md) fo
   extension.
   - Workspaces whose folder or file no longer exists are left out.
   - Remote workspaces (SSH, containers) are left out.
+  - When a folder was also opened on its own and is the first folder of a `.code-workspace` file, the menu shows
+    the one that is open in a window (its name, icon and conversations), and clicking it opens that one.
+    Otherwise it shows the one used most recently.
+    - *Why:* the Claude Code extension keys its state by the first folder, so both are the same entry. Picking
+      the most recently used alone made a workspace window turn into the bare folder once VS Code had touched
+      the folder's state, and clicking it then opened the folder in a new window.
 - A VS Code window only counts as open when the Claude Code extension is active in it.
   - *Why:* VS Code keeps no live list of its windows on disk; the extension does.
 - The menu has **Refresh**, **Settings…** and **Quit**.

@@ -110,15 +110,19 @@ public struct WorkspaceInfo: @unchecked Sendable {
   public var key: String
   public var name: String
   public var openTarget: URL
+  /// The workspace's folders, first one first (one for a folder workspace).
+  public var folders: [String]
   public var isOpen: Bool
   public var lastUsed: Date
   /// Raw extension state from the workspace's own state.vscdb, keyed by storage key (usually the extension ID).
   public var extensionState: [String: JSONObject]
 
-  public init(key: String, name: String, openTarget: URL, isOpen: Bool, lastUsed: Date, extensionState: [String: JSONObject]) {
+  public init(key: String, name: String, openTarget: URL, folders: [String]? = nil, isOpen: Bool, lastUsed: Date,
+              extensionState: [String: JSONObject]) {
     self.key = key
     self.name = name
     self.openTarget = openTarget
+    self.folders = folders ?? [key]
     self.isOpen = isOpen
     self.lastUsed = lastUsed
     self.extensionState = extensionState

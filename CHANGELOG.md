@@ -20,6 +20,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- A multi-folder workspace open in VS Code no longer turns into a single-folder entry in the menu when its first
+  folder was also opened on its own; clicking it brings the workspace window forward instead of opening the
+  folder in a new window.
 - **Settings…** now brings the settings window to the front when it was already open behind another app.
 - A VS Code conversation whose reply finished now counts as unread unless Agent Radar is sure you saw it, even
   when the Claude Code extension shows a gray dot for it. With several VS Code windows open, Agent Radar can't
