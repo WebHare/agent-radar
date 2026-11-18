@@ -192,6 +192,56 @@ import Testing
   }
 }
 
+@Suite struct SharedFirstFolderTests {
+  /// A folder and a .code-workspace file whose first folder it is share a workspace key. The one open in a window
+  /// must win, also when VS Code wrote the other one's state more recently.
+  func scan(windowFolders: [String]) throws -> Workspace? {
+    let root = try TempDir()
+    let paths = RadarPaths(vscodeUser: root.url.appendingPathComponent("Code/User"),
+                           claudeHome: root.url.appendingPathComponent("claude"),
+                           radarHome: root.url.appendingPathComponent("radar"))
+    let fm = FileManager.default
+    let projects = root.url.appendingPathComponent("projects")
+    for name in ["main", "extra"] {
+      try fm.createDirectory(at: projects.appendingPathComponent(name), withIntermediateDirectories: true)
+    }
+    let workspaceFile = projects.appendingPathComponent("Main.code-workspace")
+    try Data(#"{ "folders": [ { "path": "main" }, { "path": "extra" } ] }"#.utf8).write(to: workspaceFile)
+
+    func storage(_ id: String, _ meta: String, age: TimeInterval) throws {
+      let dir = paths.vscodeUser.appendingPathComponent("workspaceStorage/\(id)")
+      try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+      try Data(meta.utf8).write(to: dir.appendingPathComponent("workspace.json"))
+      let db = dir.appendingPathComponent("state.vscdb")
+      try makeStateDB(db, [:])
+      try fm.setAttributes([.modificationDate: Date().addingTimeInterval(-age)], ofItemAtPath: db.path)
+    }
+    try storage("folder", #"{"folder":"\#(projects.appendingPathComponent("main").absoluteString)"}"#, age: 10)
+    try storage("file", #"{"workspace":"\#(workspaceFile.absoluteString)"}"#, age: 100)
+
+    try fm.createDirectory(at: paths.claudeHome.appendingPathComponent("ide"), withIntermediateDirectories: true)
+    let folders = windowFolders.map { projects.appendingPathComponent($0).standardizedFileURL.path }
+    try JSONSerialization.data(withJSONObject: ["pid": Int(ProcessInfo.processInfo.processIdentifier),
+                                                "workspaceFolders": folders])
+      .write(to: paths.claudeHome.appendingPathComponent("ide/1.lock"))
+    let sections = Radar(paths: paths).scan()
+    #expect(sections.active.count == 1)
+    return sections.active.first
+  }
+
+  @Test func openWorkspaceFileWinsOverMoreRecentFolder() throws {
+    let active = try scan(windowFolders: ["main", "extra"])
+    #expect(active?.name == "Main")
+    #expect(active?.openTarget.lastPathComponent == "Main.code-workspace")
+  }
+
+  @Test func openFolderWinsOverWorkspaceFile() throws {
+    let active = try scan(windowFolders: ["main"])
+    #expect(active?.name == "main")
+    #expect(active?.openTarget.lastPathComponent == "main")
+  }
+}
+
 struct TempDir {
   let url: URL
   init() throws {

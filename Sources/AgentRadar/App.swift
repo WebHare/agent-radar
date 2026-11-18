@@ -144,7 +144,8 @@ enum DumpFormatter {
       lines.append("\n== \(title)")
       for ws in list {
         let age = ws.lastActivity.map { AgeFormatter.short(since: $0) } ?? "-"
-        lines.append("\(ws.name)  [\(ws.id)]  attention=\(ws.attentionCount) working=\(ws.workingCount) total=\(ws.conversations.count) last=\(age)")
+        let target = ws.openTarget.path == ws.id ? "" : " -> \(ws.openTarget.path)"
+        lines.append("\(ws.name)  [\(ws.id)\(target)]  attention=\(ws.attentionCount) working=\(ws.workingCount) total=\(ws.conversations.count) last=\(age)")
         for c in ws.foldoutConversations {
           let age = c.lastActivity.map { AgeFormatter.short(since: $0) } ?? "-"
           lines.append("    \(c.state)  \(age)  \(c.title)  (\(c.id))")
