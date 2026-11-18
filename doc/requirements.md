@@ -165,6 +165,11 @@ What Agent Radar does and the rules it follows. See [CLAUDE.md](../CLAUDE.md) fo
 - The menu has **Refresh**, **Settings…** and **Quit**.
   - **Settings…** always brings the settings window to the front, also when it's already open behind
     another app's windows.
+- A local build (built on a developer's machine) shows its build number, build date and time (in the local
+  time zone) and version in a small line at the bottom of the menu.
+  - *Why:* so a developer can see at a glance whether they are looking at an up-to-date build.
+  - Release builds (the downloadable DMG, and a future App Store build) don't show this line; they show the
+    same details in About.
 
 ## Settings
 
@@ -176,9 +181,14 @@ What Agent Radar does and the rules it follows. See [CLAUDE.md](../CLAUDE.md) fo
 - What the menu bar number counts and which sections the menu shows: see [Menu bar item](#menu-bar-item) and
   [The menu](#the-menu).
 - **Show conversations waiting for input**: see [Waiting for input](#waiting-for-input).
+- Settings shows the app's version, with an **About Agent Radar** button.
+  - About shows the version, the build number, whether it is a local, downloaded (DMG) or App Store build, and
+    when it was built.
 - Settings other than the hooks and Launch at login are stored in the app's own preferences.
 
 ## Not built yet
+
+- An App Store build. The app already knows it as a kind of build, but nothing builds or submits it yet.
 
 - Notifications when a conversation starts waiting.
 - Seeing which tab is in front, and bringing a tab forward, in terminals other than Terminal.app (iTerm2,

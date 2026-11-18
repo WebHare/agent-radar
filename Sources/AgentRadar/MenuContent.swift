@@ -38,6 +38,17 @@ struct MenuContent: View {
       .buttonStyle(.borderless)
       .padding(.horizontal, 12)
       .padding(.vertical, 8)
+
+      if let footer = BuildInfo.current.menuFooter() {
+        Text(footer)
+          .font(.caption2.monospacedDigit())
+          .foregroundStyle(.tertiary)
+          .lineLimit(1)
+          .truncationMode(.middle)
+          .frame(maxWidth: .infinity)
+          .padding(.horizontal, 12)
+          .padding(.bottom, 6)
+      }
     }
     .frame(width: 360)
     .background(WindowReader(window: $menuWindow))

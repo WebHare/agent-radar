@@ -3,6 +3,10 @@
 #   --universal  builds for both Apple silicon and Intel (slower; used for the DMG in CI)
 #   --dmg        also creates build/Agent-Radar-<version>.dmg
 #   --install    copies the app to ~/Applications and (re)starts it
+#   --channel=C  where the build is for: local (the default), dmg (the CI release DMG) or appstore. Local builds
+#                show their build number and date at the bottom of the menu; the others only in About.
+# The build number (CFBundleVersion) is BUILD_NUMBER if set (CI passes its run number), otherwise a counter kept
+# in build/.build-number that goes up with every local build.
 # Signing: with SIGN_IDENTITY (e.g. "Developer ID Application") if set, otherwise with the first Developer ID
 # Application or Apple Development certificate in the keychain, otherwise ad-hoc. SIGN_IDENTITY=- forces ad-hoc.
 # A certificate signs the app and the DMG with the hardened runtime and a secure timestamp, as notarization
@@ -22,10 +26,11 @@ else
   [ -n "$identity" ] || identity=-
 fi
 
-universal=false dmg=false install=false
+universal=false dmg=false install=false channel=local
 for arg in "$@"; do
   case "$arg" in
     --universal) universal=true ;;
+    --channel=local|--channel=dmg|--channel=appstore) channel="${arg#--channel=}" ;;
     --dmg) dmg=true ;;
     --install) install=true ;;
     *) echo "Unknown option: $arg" >&2; exit 1 ;;
@@ -43,7 +48,14 @@ bin=$(swift build "$@" --show-bin-path)
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS"
 cp "$bin/AgentRadar" "$app/Contents/MacOS/AgentRadar"
-version=$(git describe --tags --always 2>/dev/null || echo 0.1)
+version=$(git describe --tags --always --dirty 2>/dev/null || echo 0.1)
+if [ -n "$BUILD_NUMBER" ]; then
+  build_number="$BUILD_NUMBER"
+else
+  build_number=$(( $(cat build/.build-number 2>/dev/null || echo 0) + 1 ))
+  echo "$build_number" > build/.build-number
+fi
+build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 cat > "$app/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -55,7 +67,9 @@ cat > "$app/Contents/Info.plist" <<EOF
   <key>CFBundleExecutable</key><string>AgentRadar</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$version</string>
-  <key>CFBundleVersion</key><string>$version</string>
+  <key>CFBundleVersion</key><string>$build_number</string>
+  <key>AgentRadarBuildChannel</key><string>$channel</string>
+  <key>AgentRadarBuildDate</key><string>$build_date</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHumanReadableCopyright</key><string>Copyright © 2026 WebHare b.v. GNU GPL version 2.</string>
@@ -72,7 +86,7 @@ else
     --entitlements scripts/AgentRadar.entitlements "$app"
 fi
 codesign --verify --strict "$app"
-echo "Built $app ($version, signed by $identity)"
+echo "Built $app ($version, $channel build $build_number, signed by $identity)"
 
 if [ "$dmg" = true ]; then
   image="build/Agent-Radar-$version.dmg"

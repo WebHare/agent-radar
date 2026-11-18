@@ -39,6 +39,7 @@ these formats are internal to VS Code and Claude Code and may change with an upd
   - `TerminalSeen.swift`: unread state for terminal sessions.
   - `VSCodeSeen.swift`: which VS Code replies the user surely saw, for replies the extension doesn't mark unread.
   - `OrderedJSON.swift`: JSON editing that keeps the order of the user's settings.json.
+  - `BuildInfo.swift`: which kind of build is running (local, DMG, App Store), its number and build date.
 - `Sources/AgentRadar`: the SwiftUI menu bar app (views, and talking to Terminal.app).
 - `Tests/RadarKitTests`: unit tests, and integration tests against a fake VS Code and Claude Code setup on disk.
 - `scripts/build-app.sh`: building the app bundle and DMG; `scripts/AgentRadar.entitlements`: its entitlements.
@@ -56,7 +57,10 @@ scripts/build-app.sh                          # build build/Agent Radar.app
 ```
 
 `scripts/build-app.sh` also takes `--universal` (Apple silicon and Intel), `--dmg` (also builds
-`build/Agent-Radar-<version>.dmg`) and `--install`. It signs with `SIGN_IDENTITY` when set, for example
+`build/Agent-Radar-<version>.dmg`), `--install` and `--channel=local|dmg|appstore` (default `local`).
+The channel, the build date and the build number go into the Info.plist; local builds show them at the bottom
+of the menu, other builds only in About. The build number is `BUILD_NUMBER` when set (CI passes its run
+number), otherwise a counter in `build/.build-number` that goes up with every build. It signs with `SIGN_IDENTITY` when set, for example
 `SIGN_IDENTITY="Developer ID Application: WebHare bv (MF6WPNPK5H)"`; otherwise with the first Developer ID
 Application or Apple Development certificate in your keychain; otherwise ad-hoc (`SIGN_IDENTITY=-` forces
 ad-hoc). Sign with a certificate when you can: macOS ties privacy permissions (such as access to workspace
@@ -68,7 +72,8 @@ talk to Terminal. A locally signed DMG is not notarized; only CI does that.
 ## Continuous integration
 
 [.github/workflows/build.yml](.github/workflows/build.yml) runs the tests and builds a universal app and DMG
-on every push to `main` and every pull request. The DMG is attached to the run as
+on every push to `main` and every pull request, as a `dmg` channel build numbered with the run number. The DMG
+is attached to the run as
 `Agent-Radar-<version>-<run>.dmg`.
 
 Without signing secrets, the app is **ad-hoc signed**. macOS then refuses to open it after downloading: open it
