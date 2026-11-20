@@ -67,6 +67,9 @@ What Agent Radar does and the rules it follows. See [CLAUDE.md](../CLAUDE.md) fo
   - *Why:* archiving is how the user says they're done with a conversation; counting them made the numbers
     meaningless. But an archived conversation that still needs the user (or is still busy) must not disappear.
   - An archived conversation that is merely open (running with nothing pending) is left out.
+  - An archived conversation that the user opened from the menu or marked as read leaves the menu and stays out
+    until a newer reply finishes.
+    - *Why:* it once came back as unread a few seconds later, so clicking it seemed to do nothing.
 
 ## Waiting for input
 

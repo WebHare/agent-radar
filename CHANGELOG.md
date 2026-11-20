@@ -20,6 +20,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- An archived conversation that you open from the menu or mark as read now goes away, instead of showing up as
+  unread again a few seconds later.
 - A multi-folder workspace open in VS Code no longer turns into a single-folder entry in the menu when its first
   folder was also opened on its own; clicking it brings the workspace window forward instead of opening the
   folder in a new window.

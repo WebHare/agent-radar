@@ -51,7 +51,8 @@ struct VSCodeFixture {
   let now = Date().timeIntervalSince1970
   var pid: Int { Int(ProcessInfo.processInfo.processIdentifier) }
 
-  init(windows: Int = 1, lastSeenAgo: TimeInterval = 60, extensionUnread: [String] = []) throws {
+  init(windows: Int = 1, lastSeenAgo: TimeInterval = 60, extensionUnread: [String] = [],
+       archived: [String] = []) throws {
     root = try TempDir()
     paths = RadarPaths(vscodeUser: root.url.appendingPathComponent("Code/User"),
                        claudeHome: root.url.appendingPathComponent("claude"),
@@ -67,9 +68,10 @@ struct VSCodeFixture {
     try finishReply(ago: 10)
     try JSONSerialization.data(withJSONObject: ["lastSure": now - lastSeenAgo])
       .write(to: paths.radarHome.appendingPathComponent("vscode-front.json"))
-    if !extensionUnread.isEmpty {
+    if !extensionUnread.isEmpty || !archived.isEmpty {
       try fm.createDirectory(at: paths.vscodeUser.appendingPathComponent("globalStorage"), withIntermediateDirectories: true)
-      let state = try JSONSerialization.data(withJSONObject: ["sessionUnread:\(folder)": extensionUnread])
+      let state = try JSONSerialization.data(withJSONObject: ["sessionUnread:\(folder)": extensionUnread,
+                                                              "hiddenSessionIds": archived])
       try makeStateDB(paths.vscodeUser.appendingPathComponent("globalStorage/state.vscdb"), ["Anthropic.claude-code": state])
     }
   }
@@ -119,6 +121,19 @@ struct VSCodeFixture {
     #expect(state(radar) == .open)
     try fixture.finishReply(ago: -5)  // a later reply
     #expect(state(radar) == .unread)
+  }
+
+  /// An archived conversation drops out of the menu once it's read, and must stay out: its read mark is kept
+  /// although the conversation isn't listed.
+  @Test func markingAnArchivedConversationAsReadKeepsItHidden() throws {
+    let fixture = try VSCodeFixture(windows: 2, archived: ["ext1"])
+    let radar = Radar(paths: fixture.paths, providers: [ClaudeCodeProvider(paths: fixture.paths)])
+    #expect(state(radar) == .unread)
+    radar.markRead(["ext1"])
+    #expect(state(radar) == nil)
+    #expect(state(radar) == nil)
+    let restarted = Radar(paths: fixture.paths, providers: [ClaudeCodeProvider(paths: fixture.paths)])
+    #expect(state(restarted) == nil)
   }
 
   /// "Mark as read" also hides the extension's own unread dot for the replies it has seen.

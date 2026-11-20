@@ -87,7 +87,12 @@ public final class ClaudeCodeProvider: ConversationProvider {
       result.workspaces[ws.key] = Self.merge(tabs: tabs, unread: unread, live: liveHere, waiting: waiting,
                                              archived: archived).map { finish($0, transcripts) }
     }
-    vscodeSeen.prune(keeping: Set(result.workspaces.values.flatMap { $0.map(\.id) }))
+    // Keep the read marks of conversations that aren't listed but may come back: an archived conversation that
+    // was marked as read drops out of the list, and would turn unread again if its mark were forgotten.
+    let extensionUnreadIds = global.filter { $0.key.hasPrefix("sessionUnread:") }.values
+      .flatMap { ($0 as? [String]) ?? [] }
+    vscodeSeen.prune(keeping: Set(result.workspaces.values.flatMap { $0.map(\.id) })
+      .union(archived).union(live.map(\.sessionId)).union(extensionUnreadIds))
 
     for session in live where !session.isExtension && session.host != .vscode {
       let unread = TerminalSeen.isUnread(idle: !session.busy, idleSince: session.statusSince,
