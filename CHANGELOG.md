@@ -18,6 +18,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Write a troubleshooting log**, under Advanced in Settings: logs every Claude Code hook event and what Agent
   Radar did with it, every change of a conversation's state with the reason, and what you did in the menu, to
   `~/.agent-radar/debug.log`.
+- A warning, once each time Agent Radar starts, when open VS Code windows share their first folder: the Claude
+  Code extension then shows the same conversations in all of them.
 - Mark a conversation as read by right-clicking it in the menu, or all of a workspace's conversations
   with **Mark all as read** in its foldout. Opening a conversation from the menu also marks it as read.
 

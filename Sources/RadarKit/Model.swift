@@ -170,12 +170,38 @@ public protocol ConversationProvider {
   func markRead(_ conversationIds: [String])
 }
 
+/// Open VS Code windows whose first folder is the same. The Claude Code extension keys its conversations by
+/// that folder, so these windows show each other's conversations.
+public struct SharedFolder: Equatable, Sendable {
+  /// The shared first folder.
+  public var folder: String
+  /// Each window, described for the user (eg. "webhare (~/Desktop/webhare.code-workspace)").
+  public var windows: [String]
+
+  /// The title and text of the warning about these folders.
+  public static func warning(_ shared: [SharedFolder]) -> (title: String, message: String) {
+    let groups = shared.map { group in
+      "These windows all have \((group.folder as NSString).abbreviatingWithTildeInPath) as their first folder:\n"
+        + group.windows.map { "• \($0)" }.joined(separator: "\n")
+    }
+    let title = shared.count == 1 ? "VS Code windows share a folder" : "VS Code windows share folders"
+    let message = groups.joined(separator: "\n\n") + "\n\n"
+      + "The Claude Code extension only looks at the (first) folder of a window, not at which workspace it shows. "
+      + "Conversations started in one of these windows also show up in the others, so they leak between the "
+      + "windows, and Agent Radar can't tell them apart either.\n\n"
+      + "Keep only one of them open, or give each workspace a different first folder."
+    return (title, message)
+  }
+}
+
 /// The three sections of the menu.
 public struct WorkspaceSections: Sendable {
   public var active: [Workspace] = []
   public var terminal: [Workspace] = []
   public var closedWithConversations: [Workspace] = []
   public var recent: [Workspace] = []
+  /// Open windows that share their first folder, for a warning.
+  public var sharedFolders: [SharedFolder] = []
 
   public init(active: [Workspace] = [], terminal: [Workspace] = [], closedWithConversations: [Workspace] = [],
               recent: [Workspace] = []) {

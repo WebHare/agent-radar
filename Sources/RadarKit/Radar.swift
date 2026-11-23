@@ -75,7 +75,29 @@ public final class Radar: @unchecked Sendable {
                                   conversations: found.conversations))
     }
     log(workspaces: workspaces, providerLog: providerLog, trigger: trigger)
-    return WorkspaceSections.make(from: workspaces)
+    var sections = WorkspaceSections.make(from: workspaces)
+    sections.sharedFolders = Self.sharedFolders(windows: windows, known: storage.all)
+    return sections
+  }
+
+  /// Open windows with the same first folder but different folders (a folder and a workspace file starting with it,
+  /// or two such workspace files), described by the workspace VS Code knows them as.
+  static func sharedFolders(windows: [OpenWindows.Window], known: [WorkspaceInfo]) -> [SharedFolder] {
+    func describe(_ folders: [String]) -> String {
+      let matches = known.filter { $0.folders == folders }
+      let home = { (path: String) in (path as NSString).abbreviatingWithTildeInPath }
+      // A single folder can be both a folder workspace and a workspace file with just that folder; the folder wins.
+      if let info = matches.first(where: { $0.openTarget.path == folders.first && folders.count == 1 }) ?? matches.first {
+        return info.openTarget.pathExtension == "code-workspace"
+          ? "\(info.name) (\(home(info.openTarget.path)))"
+          : "\(info.name) (the folder \(home(info.openTarget.path)))"
+      }
+      return "a window with \(folders.map(home).joined(separator: ", "))"
+    }
+    let byKey = Dictionary(grouping: Set(windows.map(\.folders)), by: { $0.first ?? "" })
+    return byKey.filter { $0.value.count > 1 }.sorted { $0.key < $1.key }.map { key, lists in
+      SharedFolder(folder: key, windows: lists.map(describe).sorted())
+    }
   }
 
   /// Writes what the providers received and every conversation whose state changed, with the reason.

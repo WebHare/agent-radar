@@ -42,6 +42,8 @@ final class WorkspaceStorageScanner {
   private let paths: RadarPaths
   private let stateKeys: [String]
   private var cache: [String: CacheEntry] = [:]
+  /// Every workspace found by the last scan, including those that lost to another with the same key.
+  private(set) var all: [WorkspaceInfo] = []
 
   init(paths: RadarPaths, stateKeys: [String]) {
     self.paths = paths
@@ -77,6 +79,7 @@ final class WorkspaceStorageScanner {
       byKey[info.key] = info
     }
     cache = cache.filter { seen.contains($0.key) }
+    all = cache.values.compactMap(\.info)
     return Array(byKey.values)
   }
 
