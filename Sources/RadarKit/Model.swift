@@ -100,9 +100,12 @@ public struct Workspace: Identifiable, Sendable {
   /// When the most recently changed conversation last changed.
   public var lastActivity: Date? { conversations.compactMap(\.lastActivity).max() }
 
+  /// Most recently changed first, so a new reply is at the top; then waiting before unread, then by title.
   static func sorted(_ list: [Conversation]) -> [Conversation] {
-    list.sorted {
-      $0.state != $1.state ? $0.state < $1.state : $0.title.localizedStandardCompare($1.title) == .orderedAscending
+    list.sorted { a, b in
+      if a.lastActivity != b.lastActivity { return (a.lastActivity ?? .distantPast) > (b.lastActivity ?? .distantPast) }
+      if a.state != b.state { return a.state < b.state }
+      return a.title.localizedStandardCompare(b.title) == .orderedAscending
     }
   }
 }

@@ -136,7 +136,9 @@ What Agent Radar does and the rules it follows. See [CLAUDE.md](../CLAUDE.md) fo
 - Every entry shows how long ago its most recently changed conversation changed, as a short age ("now", "15m",
   "3h", "2d", "5w", "1y"), with the exact time on hover.
   - A conversation changes when Claude Code writes to its transcript: a message, a tool call, a title.
-- An entry that needs the user lists those conversations by title under it, marked waiting or unread.
+- An entry that needs the user lists those conversations by title under it, marked waiting or unread, the most
+  recently changed first.
+  - *Why:* sorted by title, a new reply ended up somewhere in the middle of a long list and was easy to miss.
 - Resting the pointer on an entry with conversations opens a foldout beside the menu:
   - It lists all the entry's conversations with their state and age: those that need the user first, then the
     most recently changed.

@@ -121,6 +121,20 @@ import Testing
     #expect(sections.recent.first?.id == "r0")
   }
 
+  /// Under an entry, the conversations that need the user are listed most recently changed first, so a new reply
+  /// is at the top.
+  @Test func attentionConversationsMostRecentFirst() {
+    let now = Date()
+    func c(_ title: String, _ state: ConversationState, _ age: TimeInterval?) -> Conversation {
+      Conversation(id: title, title: title, state: state, provider: "p", lastActivity: age.map { now - $0 })
+    }
+    let workspace = Workspace(id: "w", name: "w", openTarget: URL(fileURLWithPath: "/w"), isOpen: true, lastUsed: now,
+                              conversations: [c("Apple", .unread, 3600), c("Zebra", .unread, 60),
+                                              c("Mango", .waiting, 600), c("Busy", .working, 0),
+                                              c("No date", .unread, nil)])
+    #expect(workspace.attentionConversations.map(\.title) == ["Zebra", "Mango", "Apple", "No date"])
+  }
+
   @Test func workingAndOpenDontNeedAttention() {
     #expect(ws("w", open: true, age: 0, [.working, .open]).attentionCount == 0)
     #expect(ws("w", open: true, age: 0, [.waiting, .unread, .working]).attentionCount == 2)
