@@ -171,6 +171,14 @@ What Agent Radar does and the rules it follows. See [CLAUDE.md](../CLAUDE.md) fo
     - *Why:* the Claude Code extension keys its state by the first folder, so both are the same entry. Picking
       the most recently used alone made a workspace window turn into the bare folder once VS Code had touched
       the folder's state, and clicking it then opened the folder in a new window.
+- When open VS Code windows share their first folder (a folder and a `.code-workspace` file starting with it, or
+  two such workspace files), the app warns with a dialog, once each time it runs.
+  - The dialog names the shared folder and each window by its workspace, and explains that the Claude Code
+    extension only looks at a window's first folder, so conversations leak between these windows (and Agent
+    Radar can't tell them apart either).
+  - *Why:* the user can only fix this themselves, by keeping one of them open or giving each workspace its own
+    first folder; without the warning the mixed-up conversations look like a bug in the app.
+  - `--dump` lists the windows sharing a folder too.
 - A VS Code window only counts as open when the Claude Code extension is active in it.
   - *Why:* VS Code keeps no live list of its windows on disk; the extension does.
 - The menu has **Refresh**, **Settings…** and **Quit**.

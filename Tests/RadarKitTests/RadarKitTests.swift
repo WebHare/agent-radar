@@ -210,6 +210,12 @@ import Testing
   /// A folder and a .code-workspace file whose first folder it is share a workspace key. The one open in a window
   /// must win, also when VS Code wrote the other one's state more recently.
   func scan(windowFolders: [String]) throws -> Workspace? {
+    let sections = try scan(windows: [windowFolders])
+    #expect(sections.active.count == 1)
+    return sections.active.first
+  }
+
+  func scan(windows: [[String]]) throws -> WorkspaceSections {
     let root = try TempDir()
     let paths = RadarPaths(vscodeUser: root.url.appendingPathComponent("Code/User"),
                            claudeHome: root.url.appendingPathComponent("claude"),
@@ -234,13 +240,39 @@ import Testing
     try storage("file", #"{"workspace":"\#(workspaceFile.absoluteString)"}"#, age: 100)
 
     try fm.createDirectory(at: paths.claudeHome.appendingPathComponent("ide"), withIntermediateDirectories: true)
-    let folders = windowFolders.map { projects.appendingPathComponent($0).standardizedFileURL.path }
-    try JSONSerialization.data(withJSONObject: ["pid": Int(ProcessInfo.processInfo.processIdentifier),
-                                                "workspaceFolders": folders])
-      .write(to: paths.claudeHome.appendingPathComponent("ide/1.lock"))
-    let sections = Radar(paths: paths).scan()
-    #expect(sections.active.count == 1)
-    return sections.active.first
+    for (i, window) in windows.enumerated() {
+      let folders = window.map { projects.appendingPathComponent($0).standardizedFileURL.path }
+      try JSONSerialization.data(withJSONObject: ["pid": Int(ProcessInfo.processInfo.processIdentifier),
+                                                  "workspaceFolders": folders])
+        .write(to: paths.claudeHome.appendingPathComponent("ide/\(i).lock"))
+    }
+    return Radar(paths: paths).scan()
+  }
+
+  /// Two windows whose first folder is the same see each other's conversations in the Claude Code extension.
+  @Test func reportsWindowsSharingTheirFirstFolder() throws {
+    let sections = try scan(windows: [["main", "extra"], ["main"]])
+    let shared = try #require(sections.sharedFolders.first)
+    #expect(sections.sharedFolders.count == 1)
+    #expect(shared.folder.hasSuffix("/projects/main"))
+    #expect(shared.windows.count == 2)
+    #expect(shared.windows.contains { $0.contains("Main.code-workspace") })
+    #expect(shared.windows.contains { $0.hasPrefix("main") })
+  }
+
+  @Test func warningNamesTheWindowsAndExplainsTheProblem() {
+    let text = SharedFolder.warning([SharedFolder(folder: "/Users/me/projects/webhare",
+                                                  windows: ["webhare (~/Desktop/webhare.code-workspace)",
+                                                            "webhare (the folder ~/projects/webhare)"])])
+    #expect(text.title.contains("share"))
+    #expect(text.message.contains("~/projects/webhare"))
+    #expect(text.message.contains("webhare (~/Desktop/webhare.code-workspace)"))
+    #expect(text.message.contains("Claude Code extension"))
+  }
+
+  @Test func windowsWithDifferentFirstFoldersAreFine() throws {
+    #expect(try scan(windows: [["main", "extra"], ["extra"]]).sharedFolders.isEmpty)
+    #expect(try scan(windows: [["main"]]).sharedFolders.isEmpty)
   }
 
   @Test func openWorkspaceFileWinsOverMoreRecentFolder() throws {

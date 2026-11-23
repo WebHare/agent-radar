@@ -67,6 +67,8 @@ final class RadarStore: ObservableObject {
   private let radar = Radar()
   private var timer: Timer?
   private var scanning = false
+  /// The warning about windows sharing a folder is shown once per run.
+  private var warnedAboutSharedFolders = false
 
   static let interval: TimeInterval = 3
 
@@ -108,8 +110,28 @@ final class RadarStore: ObservableObject {
         self.sections = result
         self.lastScan = Date()
         self.scanning = false
+        if !self.warnedAboutSharedFolders && !result.sharedFolders.isEmpty {
+          self.warnedAboutSharedFolders = true
+          SharedFolderAlert.show(result.sharedFolders)
+        }
       }
     }
+  }
+}
+
+/// Warns that open VS Code windows share their first folder, so the Claude Code extension mixes up their
+/// conversations.
+@MainActor
+enum SharedFolderAlert {
+  static func show(_ shared: [SharedFolder]) {
+    let text = SharedFolder.warning(shared)
+    let alert = NSAlert()
+    alert.alertStyle = .warning
+    alert.messageText = text.title
+    alert.informativeText = text.message
+    alert.addButton(withTitle: "OK")
+    NSApp.activate(ignoringOtherApps: true)
+    alert.runModal()
   }
 }
 
@@ -154,6 +176,10 @@ enum DumpFormatter {
           lines.append("    \(c.state)  \(age)  \(c.title)  (\(c.id))")
         }
       }
+    }
+    for shared in sections.sharedFolders {
+      lines.append("\n== Windows sharing \(shared.folder)")
+      lines += shared.windows
     }
     return lines.joined(separator: "\n")
   }
