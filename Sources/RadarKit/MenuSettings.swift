@@ -10,18 +10,21 @@ public enum MenuBarCounter: String, CaseIterable, Sendable {
   case iconOnly
 }
 
-/// The user's choices for the menu and the menu bar item, stored in the app's user defaults.
+/// The user's choices in Settings (apart from launch at login and the hooks), stored in the app's user defaults.
 public struct MenuSettings: Equatable, Sendable {
   public var counter: MenuBarCounter = .needsUser
   public var showTerminal = true
   public var showClosed = true
   public var showRecent = true
+  /// Advanced: write the troubleshooting log (see `DebugLog`).
+  public var writeDebugLog = false
 
   public enum Key {
     public static let counter = "menuBarCounter"
     public static let showTerminal = "showTerminalSessions"
     public static let showClosed = "showClosedWorkspaces"
     public static let showRecent = "showRecentWorkspaces"
+    public static let writeDebugLog = "writeDebugLog"
   }
 
   public init() {}
@@ -31,6 +34,7 @@ public struct MenuSettings: Equatable, Sendable {
     showTerminal = defaults.object(forKey: Key.showTerminal) as? Bool ?? true
     showClosed = defaults.object(forKey: Key.showClosed) as? Bool ?? true
     showRecent = defaults.object(forKey: Key.showRecent) as? Bool ?? true
+    writeDebugLog = defaults.bool(forKey: Key.writeDebugLog)
   }
 
   public func save(to defaults: UserDefaults) {
@@ -38,6 +42,7 @@ public struct MenuSettings: Equatable, Sendable {
     defaults.set(showTerminal, forKey: Key.showTerminal)
     defaults.set(showClosed, forKey: Key.showClosed)
     defaults.set(showRecent, forKey: Key.showRecent)
+    defaults.set(writeDebugLog, forKey: Key.writeDebugLog)
   }
 
   /// The sections the menu shows. Active workspaces are always shown.

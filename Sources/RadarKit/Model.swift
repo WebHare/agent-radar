@@ -27,6 +27,8 @@ public struct Conversation: Identifiable, Hashable, Sendable {
   public var target: ConversationTarget?
   /// When the conversation last changed (a message, a tool call, ...), if known.
   public var lastActivity: Date?
+  /// Why it has this state, in words, for the troubleshooting log.
+  public var stateReason = ""
 
   public init(id: String, title: String, state: ConversationState, provider: String, target: ConversationTarget? = nil,
               lastActivity: Date? = nil) {
@@ -98,9 +100,12 @@ public struct Workspace: Identifiable, Sendable {
   /// When the most recently changed conversation last changed.
   public var lastActivity: Date? { conversations.compactMap(\.lastActivity).max() }
 
+  /// Most recently changed first, so a new reply is at the top; then waiting before unread, then by title.
   static func sorted(_ list: [Conversation]) -> [Conversation] {
-    list.sorted {
-      $0.state != $1.state ? $0.state < $1.state : $0.title.localizedStandardCompare($1.title) == .orderedAscending
+    list.sorted { a, b in
+      if a.lastActivity != b.lastActivity { return (a.lastActivity ?? .distantPast) > (b.lastActivity ?? .distantPast) }
+      if a.state != b.state { return a.state < b.state }
+      return a.title.localizedStandardCompare(b.title) == .orderedAscending
     }
   }
 }
@@ -135,6 +140,9 @@ public struct ProviderResult {
   public var workspaces: [String: [Conversation]] = [:]
   /// Terminal sessions per folder.
   public var terminalFolders: [String: TerminalFolder] = [:]
+  /// Lines for the troubleshooting log about events the provider received since its last scan (eg. hook
+  /// events and what they did), with the conversation they're about.
+  public var log: [(conversationId: String, message: String)] = []
 
   public init() {}
 }

@@ -15,6 +15,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - An About panel, opened from Settings, with the version, build number and build date.
 - Settings to launch Agent Radar at login, to choose what the number in the menu bar counts (waiting and unread,
   waiting only, or no number), and to hide the Terminal, Closed and Recent sections of the menu.
+- **Write a troubleshooting log**, under Advanced in Settings: logs every Claude Code hook event and what Agent
+  Radar did with it, every change of a conversation's state with the reason, and what you did in the menu, to
+  `~/.agent-radar/debug.log`.
 - Mark a conversation as read by right-clicking it in the menu, or all of a workspace's conversations
   with **Mark all as read** in its foldout. Opening a conversation from the menu also marks it as read.
 
@@ -32,6 +35,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- The conversations that need you are listed under their workspace with the most recently changed first, so a
+  new reply is at the top instead of somewhere in an alphabetical list.
 - Clicking a conversation or opening a workspace now also closes the menu, instead of leaving it open on top of
   the window you went to.
 - Clicking a workspace in the menu now opens it right away, also when it has conversations. Rest the pointer on

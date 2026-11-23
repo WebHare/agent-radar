@@ -90,6 +90,33 @@ struct SettingsView: View {
       }
 
       Section {
+        Toggle(isOn: $menuSettings.settings.writeDebugLog) {
+          VStack(alignment: .leading, spacing: 3) {
+            Text("Write a troubleshooting log")
+            Text("Logs every Claude Code hook event and what Agent Radar did with it, and every change of a conversation's state with the reason. Includes conversation titles.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        LabeledContent("Log file") {
+          Button(RadarPaths.standard.debugLogURL.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")) {
+            let url = RadarPaths.standard.debugLogURL
+            if FileManager.default.fileExists(atPath: url.path) {
+              NSWorkspace.shared.activateFileViewerSelecting([url])
+            } else {
+              NSWorkspace.shared.open(url.deletingLastPathComponent())
+            }
+          }
+          .buttonStyle(.link)
+          .help("Show in Finder")
+        }
+        .font(.caption)
+      } header: {
+        Text("Advanced")
+      }
+
+      Section {
         LabeledContent("Version \(BuildInfo.current.version ?? "unknown")") {
           Button("About Agent Radar") { AboutPanel.show() }
         }

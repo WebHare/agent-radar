@@ -7,15 +7,30 @@ public final class Radar: @unchecked Sendable {
   private let paths: RadarPaths
   private let providers: [ConversationProvider]
   private let storage: WorkspaceStorageScanner
+  /// The troubleshooting log; off until Settings switches it on.
+  public let debugLog: DebugLog
+  /// Each conversation's state at the previous scan, to log what changed.
+  private var previous: [String: Logged] = [:]
+  private var loggedBefore = false
+  /// What was last logged about VS Code being in front and the terminal tab in front, to log only changes.
+  private var frontNote: String?
+  private var terminalNote: String?
+
+  private struct Logged {
+    var state: ConversationState
+    var label: String
+  }
 
   public init(paths: RadarPaths = .standard, providers: [ConversationProvider]? = nil) {
     self.paths = paths
     self.providers = providers ?? [ClaudeCodeProvider(paths: paths)]
     let keys = Array(Set(self.providers.flatMap(\.workspaceStateKeys))).sorted()
     self.storage = WorkspaceStorageScanner(paths: paths, stateKeys: keys)
+    self.debugLog = DebugLog(url: paths.debugLogURL)
   }
 
-  public func scan() -> WorkspaceSections {
+  /// `trigger` says what started the scan, for the troubleshooting log: "poll" for the regular rescan.
+  public func scan(trigger: String = "poll") -> WorkspaceSections {
     let windows = OpenWindows.read(paths: paths)
     var infos = storage.scan(openFolders: windows.map(\.folders))
     let openKeys = Set(windows.map(\.key))
@@ -36,8 +51,10 @@ public final class Radar: @unchecked Sendable {
 
     var conversations: [String: [Conversation]] = [:]
     var terminalFolders: [String: TerminalFolder] = [:]
+    var providerLog: [(conversationId: String, message: String)] = []
     for provider in providers {
       let result = provider.scan(workspaces: infos, globalState: globalState)
+      providerLog += result.log
       for (key, list) in result.workspaces {
         conversations[key, default: []].append(contentsOf: list)
       }
@@ -57,24 +74,98 @@ public final class Radar: @unchecked Sendable {
                                   openTarget: url, isOpen: true, lastUsed: found.lastActive,
                                   conversations: found.conversations))
     }
+    log(workspaces: workspaces, providerLog: providerLog, trigger: trigger)
     return WorkspaceSections.make(from: workspaces)
+  }
+
+  /// Writes what the providers received and every conversation whose state changed, with the reason.
+  private func log(workspaces: [Workspace], providerLog: [(conversationId: String, message: String)], trigger: String) {
+    var current: [String: (Conversation, Logged)] = [:]
+    for ws in workspaces {
+      for c in ws.conversations {
+        current[c.id] = (c, Logged(state: c.state, label: "\(c.id) “\(c.title)” in \(ws.name)"))
+      }
+    }
+    defer { previous = current.mapValues(\.1) }
+    guard debugLog.isEnabled else {
+      loggedBefore = false
+      return
+    }
+    func label(_ id: String) -> String { current[id]?.1.label ?? previous[id]?.label ?? "\(id) (not listed)" }
+
+    for entry in providerLog {
+      debugLog.write("hook", "\(label(entry.conversationId)): \(entry.message)")
+    }
+    if !loggedBefore {
+      // Just switched on: the starting point.
+      loggedBefore = true
+      let listed = current.values.sorted { $0.1.label < $1.1.label }
+      debugLog.write("start", "Log switched on. \(listed.count) conversations listed; those not open:")
+      for (c, logged) in listed where c.state != .open {
+        debugLog.write("state", "\(logged.label): \(Self.name(c.state)). Why: \(c.stateReason).")
+      }
+      return
+    }
+    for (id, (c, logged)) in current.sorted(by: { $0.value.1.label < $1.value.1.label }) {
+      let before = previous[id].map { Self.name($0.state) } ?? "new"
+      guard previous[id]?.state != c.state else { continue }
+      debugLog.write("state", "\(logged.label): \(before) → \(Self.name(c.state)) (\(trigger)). Why: \(c.stateReason).")
+    }
+    for (id, old) in previous.sorted(by: { $0.value.label < $1.value.label }) where current[id] == nil {
+      debugLog.write("state", "\(old.label): \(Self.name(old.state)) → no longer listed (\(trigger)). Why: archived with nothing pending, or its workspace, tab or session is gone.")
+    }
+  }
+
+  static func name(_ state: ConversationState) -> String {
+    switch state {
+    case .waiting: "waiting"
+    case .unread: "unread"
+    case .working: "working"
+    case .open: "open"
+    }
   }
 
   /// The user is looking at the terminal tab with this tty (eg. `/dev/ttys003`).
   public func markTerminalSeen(tty: String) {
+    note(&terminalNote, "Terminal.app is in front with the tab on \(tty): its sessions count as seen")
     for provider in providers { provider.markTerminalSeen(tty: tty) }
+  }
+
+  /// No terminal tab with a Claude Code session is in front (anymore).
+  public func noTerminalInFront() {
+    note(&terminalNote, nil, otherwise: "No Terminal.app tab with a session is in front anymore")
   }
 
   /// VS Code is the frontmost app now. Only with a single VS Code window open does that mean the user sees its
   /// conversations; with more, the app can't tell which window they're looking at (see
   /// https://github.com/WebHare/agent-radar/issues/7).
   public func markVSCodeFront() {
-    guard Set(OpenWindows.read(paths: paths).map(\.key)).count <= 1 else { return }
+    let windows = Set(OpenWindows.read(paths: paths).map(\.key)).count
+    guard windows <= 1 else {
+      note(&frontNote, "VS Code is in front with \(windows) windows: Agent Radar can't tell which one you see, so its replies don't count as seen")
+      return
+    }
+    note(&frontNote, "VS Code is in front with \(windows) window: all its replies count as seen while it stays in front")
     for provider in providers { provider.markVSCodeSeen() }
+  }
+
+  /// Another app than VS Code is in front.
+  public func vscodeNotInFront() {
+    note(&frontNote, nil, otherwise: "VS Code is no longer in front")
+  }
+
+  /// Logs `text` when it differs from what was last logged on the subject. With `text` nil, logs `otherwise` once.
+  private func note(_ last: inout String?, _ text: String?, otherwise: String = "") {
+    guard text != last else { return }
+    if debugLog.isEnabled { debugLog.write("front", text ?? otherwise) }
+    last = text
   }
 
   /// The user marked these conversations as read, or opened them from the menu.
   public func markRead(_ conversationIds: [String]) {
+    for id in conversationIds {
+      debugLog.write("user", "\(previous[id]?.label ?? id): marked as read (opened from the menu or Mark as read)")
+    }
     for provider in providers { provider.markRead(conversationIds) }
   }
 }

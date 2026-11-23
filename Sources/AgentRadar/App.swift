@@ -83,10 +83,11 @@ final class RadarStore: ObservableObject {
     guard !ids.isEmpty else { return }
     let radar = self.radar
     queue.async { radar.markRead(ids) }
-    refresh()
+    refresh(trigger: "after marking as read")
   }
 
-  func refresh() {
+  /// `trigger` says what started the scan, for the troubleshooting log.
+  func refresh(trigger: String = "poll") {
     guard !scanning else { return }
     scanning = true
     let radar = self.radar
@@ -97,10 +98,12 @@ final class RadarStore: ObservableObject {
     // unread unless it's sure the user saw it, for which VS Code has to be in front. TODO: remove when
     // https://github.com/anthropics/claude-code/issues/110457 is fixed (https://github.com/WebHare/agent-radar/issues/3).
     let vscodeFront = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Opener.vscodeBundleID
+    let writeLog = UserDefaults.standard.bool(forKey: MenuSettings.Key.writeDebugLog)
     queue.async {
-      if vscodeFront { radar.markVSCodeFront() }
-      if let frontTTY { radar.markTerminalSeen(tty: frontTTY) }
-      let result = radar.scan()
+      radar.debugLog.isEnabled = writeLog
+      if vscodeFront { radar.markVSCodeFront() } else { radar.vscodeNotInFront() }
+      if let frontTTY { radar.markTerminalSeen(tty: frontTTY) } else { radar.noTerminalInFront() }
+      let result = radar.scan(trigger: trigger)
       Task { @MainActor in
         self.sections = result
         self.lastScan = Date()

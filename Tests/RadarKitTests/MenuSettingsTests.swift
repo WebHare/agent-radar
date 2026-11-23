@@ -55,6 +55,7 @@ import Testing
     var settings = MenuSettings()
     settings.counter = .waitingOnly
     settings.showRecent = false
+    settings.writeDebugLog = true
     settings.save(to: defaults)
     #expect(MenuSettings(defaults: defaults) == settings)
 
