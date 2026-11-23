@@ -190,10 +190,27 @@ What Agent Radar does and the rules it follows. See [CLAUDE.md](../CLAUDE.md) fo
 - What the menu bar number counts and which sections the menu shows: see [Menu bar item](#menu-bar-item) and
   [The menu](#the-menu).
 - **Show conversations waiting for input**: see [Waiting for input](#waiting-for-input).
+- **Write a troubleshooting log** (under Advanced, off by default) writes `~/.agent-radar/debug.log`, so the user
+  can see why a conversation has the state it has, and report problems.
+  - *Why:* whether a conversation counts as unread or waiting depends on several sources (session files, the
+    extension's state, hooks, which app is in front, what the user marked as read), and without a record it's
+    impossible to tell afterwards which one was wrong.
+  - It logs every Claude Code hook event Agent Radar receives, what it did with it (now waiting, no longer
+    waiting, or nothing) and why, including events it doesn't use.
+  - It logs every change of a conversation's state, whatever caused it, with the reason in words (eg. "its reply
+    finished at 12:29, after you marked it as read at 12:27") and what started the update (the regular rescan,
+    or marking as read).
+  - It logs the user's actions and other inputs that affect the state: marking as read (also by opening a
+    conversation from the menu), and VS Code or a Terminal.app tab coming to or leaving the front.
+  - When switched on, it first logs every listed conversation that isn't merely open, with its state and reason.
+  - It holds session IDs and conversation titles, nothing else from the conversations. Settings says so.
+  - Settings shows where the file is; clicking it shows the file in Finder.
+  - Past 5 MB the log moves to `debug.log.1`, replacing the previous one, and a new log starts.
 - Settings shows the app's version, with an **About Agent Radar** button.
   - About shows the version, the build number, whether it is a local, downloaded (DMG) or App Store build, and
     when it was built.
 - Settings other than the hooks and Launch at login are stored in the app's own preferences.
+- Settings are in sections: General, Menu bar, Show in the menu, Claude Code, Advanced, and the version.
 
 ## Not built yet
 

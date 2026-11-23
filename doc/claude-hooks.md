@@ -109,6 +109,20 @@ appends one line to `~/.agent-radar/claude-code-events.jsonl`:
 - Async hooks may finish in a different order than their events happened. In practice the events that matter
   (a prompt, then the answer) are seconds apart.
 
+## Seeing what Agent Radar does with the events
+
+With **Settings… → Advanced → Write a troubleshooting log** on, Agent Radar writes each event it reads to
+`~/.agent-radar/debug.log`, with what it did (now waiting, no longer waiting, or nothing) and why, followed by
+any change of the conversation's state. For example:
+
+```
+2026-11-20 12:32:41.722  hook    91109b39-… “Fix the build” in agent-radar: PostToolUse Bash, fired at 2026-11-20 12:32:41: wasn't waiting, nothing changes. Why: Bash ran, so any question or permission was answered.
+```
+
+`Stop` only ends waiting. Whether a finished reply counts as unread doesn't come from the hooks but from Claude
+Code's session file, the extension's unread dot and when Agent Radar was last sure you saw the reply; the log
+gives that reason on the conversation's `state` line.
+
 ## Checking that it works
 
 1. Install the hooks and start a new Claude Code conversation, in VS Code or a terminal.

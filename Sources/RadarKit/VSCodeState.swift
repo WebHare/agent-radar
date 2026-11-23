@@ -15,6 +15,9 @@ public struct RadarPaths: Sendable {
     self.radarHome = radarHome
   }
 
+  /// The troubleshooting log (see `DebugLog`).
+  public var debugLogURL: URL { radarHome.appendingPathComponent("debug.log") }
+
   public static var standard: RadarPaths {
     // $HOME first, as the hook script uses it too (and so tests can redirect everything).
     let home = ProcessInfo.processInfo.environment["HOME"].map { URL(fileURLWithPath: $0) }

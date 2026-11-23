@@ -25,6 +25,8 @@ public final class ClaudeCodeProvider: ConversationProvider {
   private let seen: TerminalSeen
   private let vscodeSeen: VSCodeSeen
   private let hostResolver: (Int) -> (host: TerminalHost, tty: String?)
+  /// How far the hook event log has been read, to report the events added since (nil before the first scan).
+  private var hookLogOffset: Int?
 
   /// `hostResolver` finds the app and tty of a terminal session's process; replaceable for tests.
   public convenience init(paths: RadarPaths) {
@@ -59,7 +61,12 @@ public final class ClaudeCodeProvider: ConversationProvider {
     let global = globalState[Self.extensionKey] ?? [:]
     let archived = Set((global["hiddenSessionIds"] as? [String]) ?? [])
     let live = readLiveSessions()
-    let waiting = ClaudeHookEvents.waitingSessions(logURL: ClaudeHookEvents.logURL(paths: paths))
+    let hookLog = ClaudeHookEvents.read(logURL: ClaudeHookEvents.logURL(paths: paths), newFrom: hookLogOffset)
+    hookLogOffset = hookLog.end
+    let waiting = Set(hookLog.waiting.keys)
+    let waitingReasons = hookLog.waiting.mapValues { e in
+      "the hooks' last event for it (\(e.event)\(e.time.map { " at \(DebugLog.time($0))" } ?? "")) means it waits: \(ClaudeHookEvents.effect(of: e).reason)"
+    }
     let keys = workspaces.map(\.key)
     let transcripts = transcriptIndex()
     titleCache = titleCache.filter { transcripts[$0.key] != nil }
@@ -75,22 +82,48 @@ public final class ClaudeCodeProvider: ConversationProvider {
       // The extension's unread dot, minus what the user marked as read in the menu since, plus replies the
       // extension misses: those the app isn't sure the user saw. TODO: drop the last part when
       // https://github.com/anthropics/claude-code/issues/110457 is fixed (https://github.com/WebHare/agent-radar/issues/3).
+      var reasons: [String: String] = [:]
+      // Explains a live session's unread state from VS Code's side; the extension's dot is added below.
+      for session in liveHere where !session.busy && !session.waiting {
+        reasons[session.sessionId] = vscodeSeen.explain(idleSince: session.statusSince, startedAt: session.startedAt,
+                                                        sessionId: session.sessionId)
+      }
       let extensionUnread = ((global["sessionUnread:\(ws.key)"] as? [String]) ?? []).filter { id in
-        guard let read = vscodeSeen.read[id] else { return true }
+        guard let read = vscodeSeen.read[id] else {
+          reasons[id] = "the Claude Code extension marks it unread (the orange dot in VS Code)"
+          return true
+        }
         let reply = liveHere.first { $0.sessionId == id }?.statusSince ?? transcripts[id]?.modified ?? .distantFuture
-        return reply > read
+        if reply > read {
+          reasons[id] = "the Claude Code extension marks it unread, and its reply at \(DebugLog.time(reply)) came after you marked it as read at \(DebugLog.time(read))"
+          return true
+        }
+        reasons[id] = "the Claude Code extension still marks it unread, but you marked it as read at \(DebugLog.time(read)), after its last reply"
+        return false
       }
       let unread = Set(extensionUnread).union(liveHere.filter {
         !$0.waiting && VSCodeSeen.isUnread(idle: !$0.busy, idleSince: $0.statusSince, startedAt: $0.startedAt,
                                            seenSince: vscodeSeen.seenSince($0.sessionId))
       }.map(\.sessionId))
       result.workspaces[ws.key] = Self.merge(tabs: tabs, unread: unread, live: liveHere, waiting: waiting,
-                                             archived: archived).map { finish($0, transcripts) }
+                                             archived: archived, reasons: reasons,
+                                             waitingReasons: waitingReasons).map { finish($0, transcripts) }
     }
     // Keep the read marks of conversations that aren't listed but may come back: an archived conversation that
     // was marked as read drops out of the list, and would turn unread again if its mark were forgotten.
     let extensionUnreadIds = global.filter { $0.key.hasPrefix("sessionUnread:") }.values
       .flatMap { ($0 as? [String]) ?? [] }
+    for (e, effect, was, now) in hookLog.newEvents {
+      let what = e.event + (e.tool.isEmpty ? "" : " \(e.tool)") + (e.type.isEmpty ? "" : " (\(e.type))")
+      let action = switch (was, now) {
+      case (false, true): "now waiting for input"
+      case (true, false): "no longer waiting for input"
+      case (true, true): "still waiting for input"
+      case (false, false): effect.waits == false ? "wasn't waiting, nothing changes" : "not waiting, nothing changes"
+      }
+      let fired = e.time.map { ", fired at \(DebugLog.time($0, seconds: true))" } ?? ""
+      result.log.append((e.session, "\(what)\(fired): \(action). Why: \(effect.reason)."))
+    }
     vscodeSeen.prune(keeping: Set(result.workspaces.values.flatMap { $0.map(\.id) })
       .union(archived).union(live.map(\.sessionId)).union(extensionUnreadIds))
 
@@ -99,9 +132,21 @@ public final class ClaudeCodeProvider: ConversationProvider {
                                          startedAt: session.startedAt, lastSeen: seen.seen[session.sessionId])
       let state: ConversationState = session.waiting || waiting.contains(session.sessionId) ? .waiting
         : unread ? .unread : session.busy ? .working : .open
-      let conversation = finish(Conversation(id: session.sessionId, title: "", state: state, provider: Self.providerID,
+      var conversation = finish(Conversation(id: session.sessionId, title: "", state: state, provider: Self.providerID,
                                              target: .terminal(host: session.host, tty: session.tty)),
                                 transcripts, untitled: "New conversation")
+      let lastSeen = seen.seen[session.sessionId].map { "its terminal tab was last in front at \(DebugLog.time($0))" }
+        ?? "its terminal tab hasn't been in front since it started"
+      let finished = session.statusSince.map { "its reply finished at \(DebugLog.time($0))" } ?? "it's idle"
+      let notSeen = seen.seen[session.sessionId].map { "its terminal tab was last in front before that, at \(DebugLog.time($0))" }
+        ?? "its terminal tab hasn't been in front since it started"
+      conversation.stateReason = switch state {
+      case .waiting: session.waiting ? "the session file says it waits for the user"
+        : waitingReasons[session.sessionId] ?? "the hooks say it waits"
+      case .unread: "\(finished), and \(notSeen)"
+      case .working: "its Claude Code process is busy"
+      case .open: "\(finished); \(lastSeen)"
+      }
       result.terminalFolders[session.cwd, default: TerminalFolder()].conversations.append(conversation)
       if let started = session.startedAt, started > result.terminalFolders[session.cwd]!.lastActive {
         result.terminalFolders[session.cwd]!.lastActive = started
@@ -141,8 +186,10 @@ public final class ClaudeCodeProvider: ConversationProvider {
 
   /// Combines the sources into one conversation per session. Titles come from the tabs and may be empty.
   /// Archived conversations are left out, unless they're waiting, unread or working.
+  /// `reasons` explains the unread or open state of a conversation, `waitingReasons` why the hooks say it waits.
   static func merge(tabs: [JSONObject], unread: Set<String>, live: [LiveSession], waiting: Set<String>,
-                    archived: Set<String> = []) -> [Conversation] {
+                    archived: Set<String> = [], reasons: [String: String] = [:],
+                    waitingReasons: [String: String] = [:]) -> [Conversation] {
     let liveById = Dictionary(live.map { ($0.sessionId, $0) }, uniquingKeysWith: { a, _ in a })
     var titles: [String: String] = [:]
     var order: [String] = []
@@ -162,14 +209,20 @@ public final class ClaudeCodeProvider: ConversationProvider {
 
     return order.compactMap { id in
       let state: ConversationState
+      let reason: String
       if let session = liveById[id], session.waiting || waiting.contains(id) {
         state = .waiting
+        reason = session.waiting ? "the session file says it waits for the user"
+          : waitingReasons[id] ?? "the hooks say it waits for the user"
       } else if unread.contains(id) {
         state = .unread
+        reason = reasons[id] ?? "it has an unread reply"
       } else if liveById[id]?.busy == true {
         state = .working
+        reason = "its Claude Code process is busy"
       } else {
         state = .open
+        reason = reasons[id] ?? (liveById[id] == nil ? "not running, nothing pending" : "running, nothing pending")
       }
       if state == .open && archived.contains(id) { return nil }
       let target: ConversationTarget? = if let session = liveById[id], !session.isExtension {
@@ -177,7 +230,9 @@ public final class ClaudeCodeProvider: ConversationProvider {
       } else {
         openURL(sessionId: id).map { .vscode($0) }
       }
-      return Conversation(id: id, title: titles[id] ?? "", state: state, provider: providerID, target: target)
+      var conversation = Conversation(id: id, title: titles[id] ?? "", state: state, provider: providerID, target: target)
+      conversation.stateReason = reason
+      return conversation
     }
   }
 
@@ -307,7 +362,7 @@ struct TranscriptTitles {
 }
 
 /// The event log written by the optional Claude Code hooks (the script in `ClaudeHooks`): one JSON object per line
-/// with `event`, `session`, and depending on the event `type` (notification type) and `tool`.
+/// with `event`, `session`, `time` and depending on the event `type` (notification type) and `tool`.
 public enum ClaudeHookEvents {
   static let maxLogSize = 256 * 1024
 
@@ -320,23 +375,15 @@ public enum ClaudeHookEvents {
     var session: String
     var type: String
     var tool: String
+    /// When the hook ran.
+    var time: Date?
   }
 
-  /// Session IDs whose last relevant event says they're waiting for the user. Compacts the log when it grows.
-  static func waitingSessions(logURL: URL) -> Set<String> {
-    guard let data = try? Data(contentsOf: logURL) else { return [] }
-    let waiting = waitingSessions(events: parse(data))
-    if data.count > maxLogSize { compact(logURL: logURL, waiting: waiting) }
-    return waiting
-  }
-
-  static func parse(_ data: Data) -> [Event] {
-    data.split(separator: UInt8(ascii: "\n")).compactMap { line in
-      guard let json = JSON.object(Data(line)),
-            let event = json["event"] as? String,
-            let session = json["session"] as? String, !session.isEmpty else { return nil }
-      return Event(event: event, session: session, type: json["type"] as? String ?? "", tool: json["tool"] as? String ?? "")
-    }
+  /// What an event means for whether its conversation waits for the user, and why.
+  struct Effect {
+    /// true: it waits now; false: it no longer waits; nil: the event doesn't change it.
+    var waits: Bool?
+    var reason: String
   }
 
   /// Tools that wait for the user's answer while they run.
@@ -345,31 +392,98 @@ public enum ClaudeHookEvents {
   /// finished reply) is deliberately not one of them; that case is covered by "unread".
   static let waitingNotifications: Set<String> = ["permission_prompt", "elicitation_dialog"]
 
+  static func effect(of e: Event) -> Effect {
+    switch e.event {
+    case "Notification":
+      return waitingNotifications.contains(e.type)
+        ? Effect(waits: true, reason: "a \(e.type) notification: Claude Code asks the user something")
+        : Effect(waits: nil, reason: "notification type '\(e.type)' isn't about waiting for input (a finished reply shows as unread instead)")
+    case "PermissionRequest":
+      return Effect(waits: true, reason: "a permission dialog is shown\(e.tool.isEmpty ? "" : " for \(e.tool)")")
+    case "Elicitation":
+      return Effect(waits: true, reason: "an MCP server asks the user for input")
+    case "PreToolUse":
+      return questionTools.contains(e.tool)
+        ? Effect(waits: true, reason: "\(e.tool) waits for the user's answer")
+        : Effect(waits: nil, reason: "\(e.tool.isEmpty ? "the tool" : e.tool) doesn't wait for the user")
+    case "PostToolUse", "PostToolUseFailure":
+      return Effect(waits: false, reason: "\(e.tool.isEmpty ? "a tool" : e.tool) ran, so any question or permission was answered")
+    case "PermissionDenied", "ElicitationResult":
+      return Effect(waits: false, reason: "the user answered")
+    case "UserPromptSubmit":
+      return Effect(waits: false, reason: "the user sent a message")
+    case "Stop", "StopFailure":
+      return Effect(waits: false, reason: "the reply ended. Hooks don't decide unread: that comes from the session file's idle status and when Agent Radar was last sure you saw it")
+    case "SessionStart", "SessionEnd":
+      return Effect(waits: false, reason: "the session \(e.event == "SessionStart" ? "started" : "ended")")
+    default:
+      return Effect(waits: nil, reason: "Agent Radar doesn't use \(e.event.isEmpty ? "this event" : e.event) events")
+    }
+  }
+
+  /// Session IDs whose last relevant event says they're waiting for the user. Compacts the log when it grows.
+  static func waitingSessions(logURL: URL) -> Set<String> {
+    Set(read(logURL: logURL, newFrom: nil).waiting.keys)
+  }
+
+  /// What the log says, and the events added since byte `newFrom` with what each did.
+  struct LogState {
+    /// Waiting sessions, with the event that made them wait.
+    var waiting: [String: Event] = [:]
+    var newEvents: [(event: Event, effect: Effect, wasWaiting: Bool, isWaiting: Bool)] = []
+    /// Where the next read starts. The hook script writes each line at once, so lines aren't cut off.
+    var end = 0
+  }
+
+  static func read(logURL: URL, newFrom offset: Int?) -> LogState {
+    guard let data = try? Data(contentsOf: logURL) else { return LogState() }
+    var state = LogState()
+    state.end = data.count
+    // A log that shrank was compacted: what's in it now isn't new.
+    let newFrom = offset.map { $0 <= state.end ? $0 : state.end } ?? state.end
+    let old = parse(data.prefix(newFrom))
+    let all = old + parse(data[newFrom..<state.end])
+    for (i, e) in all.enumerated() {
+      let effect = effect(of: e)
+      let was = state.waiting[e.session] != nil
+      if effect.waits == true { state.waiting[e.session] = e }
+      if effect.waits == false { state.waiting[e.session] = nil }
+      if i >= old.count {
+        state.newEvents.append((e, effect, was, state.waiting[e.session] != nil))
+      }
+    }
+    if data.count > maxLogSize { state.end = compact(logURL: logURL, waiting: Set(state.waiting.keys)) }
+    return state
+  }
+
+  static func parse(_ data: Data) -> [Event] {
+    data.split(separator: UInt8(ascii: "\n")).compactMap { line in
+      guard let json = JSON.object(Data(line)),
+            let event = json["event"] as? String,
+            let session = json["session"] as? String, !session.isEmpty else { return nil }
+      return Event(event: event, session: session, type: json["type"] as? String ?? "", tool: json["tool"] as? String ?? "",
+                   time: (json["time"] as? Double).map { Date(timeIntervalSince1970: $0) })
+    }
+  }
+
   static func waitingSessions(events: [Event]) -> Set<String> {
     var waiting = Set<String>()
     for e in events {
-      switch e.event {
-      case "Notification":
-        if waitingNotifications.contains(e.type) { waiting.insert(e.session) }
-      case "PermissionRequest", "Elicitation":
-        waiting.insert(e.session)
-      case "PreToolUse":
-        if questionTools.contains(e.tool) { waiting.insert(e.session) }
-      case "PostToolUse", "PostToolUseFailure", "PermissionDenied", "ElicitationResult", "UserPromptSubmit", "Stop",
-           "StopFailure", "SessionStart", "SessionEnd":
-        waiting.remove(e.session)
-      default:
-        break
+      switch effect(of: e).waits {
+      case true?: waiting.insert(e.session)
+      case false?: waiting.remove(e.session)
+      case nil: break
       }
     }
     return waiting
   }
 
-  /// Rewrites the log to just the sessions that are waiting now.
+  /// Rewrites the log to just the sessions that are waiting now, and returns its new size.
   /// An event appended by a hook while compacting can get lost; the next event of that session corrects it.
-  static func compact(logURL: URL, waiting: Set<String>) {
+  static func compact(logURL: URL, waiting: Set<String>) -> Int {
     let lines = waiting.sorted().map { #"{"event":"Notification","session":"\#($0)","type":"permission_prompt"}"# }
     let text = lines.isEmpty ? "" : lines.joined(separator: "\n") + "\n"
     try? Data(text.utf8).write(to: logURL, options: .atomic)
+    return text.utf8.count
   }
 }

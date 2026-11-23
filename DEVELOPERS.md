@@ -37,6 +37,8 @@ these formats are internal to VS Code and Claude Code and may change with an upd
   - `VSCodeState.swift`: VS Code's workspace list and open windows.
   - `Processes.swift`: finding the terminal app and tab of a session's process.
   - `TerminalSeen.swift`: unread state for terminal sessions.
+  - `DebugLog.swift`: the troubleshooting log from Settings; `Radar` and the providers explain each state in
+    `Conversation.stateReason` and `ProviderResult.log` for it.
   - `VSCodeSeen.swift`: which VS Code replies the user surely saw, for replies the extension doesn't mark unread.
   - `OrderedJSON.swift`: JSON editing that keeps the order of the user's settings.json.
   - `BuildInfo.swift`: which kind of build is running (local, DMG, App Store), its number and build date.

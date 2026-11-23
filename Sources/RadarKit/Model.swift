@@ -27,6 +27,8 @@ public struct Conversation: Identifiable, Hashable, Sendable {
   public var target: ConversationTarget?
   /// When the conversation last changed (a message, a tool call, ...), if known.
   public var lastActivity: Date?
+  /// Why it has this state, in words, for the troubleshooting log.
+  public var stateReason = ""
 
   public init(id: String, title: String, state: ConversationState, provider: String, target: ConversationTarget? = nil,
               lastActivity: Date? = nil) {
@@ -135,6 +137,9 @@ public struct ProviderResult {
   public var workspaces: [String: [Conversation]] = [:]
   /// Terminal sessions per folder.
   public var terminalFolders: [String: TerminalFolder] = [:]
+  /// Lines for the troubleshooting log about events the provider received since its last scan (eg. hook
+  /// events and what they did), with the conversation they're about.
+  public var log: [(conversationId: String, message: String)] = []
 
   public init() {}
 }

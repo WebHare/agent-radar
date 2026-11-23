@@ -70,6 +70,23 @@ final class VSCodeSeen {
     return idleSince > max(seenSince, startup)
   }
 
+  /// Why an idle session counts as unread or not, for the troubleshooting log.
+  func explain(idleSince: Date?, startedAt: Date?, sessionId: String) -> String {
+    guard let idleSince else { return "idle, but the session file doesn't say since when" }
+    let finished = "its reply finished at \(DebugLog.time(idleSince))"
+    let seen = if let read = read[sessionId], read >= lastSure {
+      "you marked it as read (or opened it from the menu) at \(DebugLog.time(read))"
+    } else {
+      "Agent Radar was last sure you saw VS Code's replies at \(DebugLog.time(lastSure)) (VS Code in front with one window)"
+    }
+    if let startedAt, idleSince <= startedAt.addingTimeInterval(TerminalSeen.startupGrace) {
+      return "it went idle right after starting, which isn't a reply"
+    }
+    return Self.isUnread(idle: true, idleSince: idleSince, startedAt: startedAt, seenSince: seenSince(sessionId))
+      ? "\(finished), after \(seen)"
+      : "\(finished), before \(seen)"
+  }
+
   private func save() {
     try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     let raw: [String: Any] = ["lastSure": lastSure.timeIntervalSince1970,
