@@ -44,14 +44,28 @@ What Agent Radar does and the rules it follows. See [CLAUDE.md](../CLAUDE.md) fo
     - *Why:* the extension only marks a reply unread when its tab is hidden, and ignores window focus. A reply
       that finishes in a tab in front of a background window, or while VS Code is behind another app, keeps a gray
       dot and went unnoticed. Better a reply marked unread that the user saw than one they missed.
-    - The app is only sure while VS Code is the frontmost app with a single window open. It can't tell which of
-      several windows the user is looking at without asking for extra permissions, so it doesn't try.
+    - Without its VS Code extension, the app is only sure while VS Code is the frontmost app with a single
+      window open. It can't tell which of several windows the user is looking at without asking for extra
+      permissions, so it doesn't try.
       - *Why:* checking only whether VS Code was in front missed replies in one window while the user worked in
         another. The options and their trade-offs are in issue #7.
     - Consequence: with several VS Code windows open, nearly every finished reply counts as unread, including
       the one the user is watching, until it's cleared.
     - It's cleared when the user sends a new message in the conversation, opens it from the menu, marks it as
       read in the menu, or when VS Code is in front with a single window.
+    - With Agent Radar's VS Code extension installed, a conversation also counts as seen while its tab is in
+      front in the VS Code window that has focus.
+      - Up to the moment the user switched to another tab, window or app, also when that was between two of the
+        app's checks. *Why:* the user often watches a reply finish and moves on within seconds.
+      - A reply the user saw stays seen after restarting the app.
+      - A tab is recognised by its title. When several conversations in the workspace have the same title (such
+        as new, untitled ones), the app can't tell which one the user saw, so none of them counts as seen.
+      - Conversations shown in VS Code's sidebar can't be seen by the extension; they keep the rule above.
+      - Several windows of the same workspace each report their own tabs; a conversation counts as seen when
+        it's in front in any of them that has focus.
+      - The extension only writes a small file per window in Agent Radar's own folder, with the window's
+        folders, whether it has focus, and the titles of its tabs. It reads nothing from the conversations.
+      - Works in VS Code only for now, not in its variants (see [Not built yet](#not-built-yet)).
     - Temporary: drop this once the extension takes window focus into account (reported to Claude Code as
       anthropics/claude-code#110457, tracked here in issue #3).
     - Also applies to sessions in VS Code's integrated terminal, which have no unread dot of their own.
@@ -232,3 +246,6 @@ What Agent Radar does and the rules it follows. See [CLAUDE.md](../CLAUDE.md) fo
 - Claude Code background sessions (`claude agents`) and Claude Code in the Desktop app.
 - Other agents (Codex, Copilot, ...).
 - VS Code Insiders, Cursor and other VS Code variants.
+- Publishing the VS Code extension on the Marketplace and Open VSX, and telling the user about it in Settings.
+- Using the VS Code extension for sessions in VS Code's integrated terminal. It can tell which terminal is
+  selected, but not whether the terminal panel is visible.

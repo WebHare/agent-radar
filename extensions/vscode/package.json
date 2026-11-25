@@ -1,0 +1,18 @@
+{
+  "name": "agent-radar",
+  "displayName": "Agent Radar",
+  "description": "Tells the Agent Radar menu bar app which AI agent conversation tabs you have in front, so it can stop marking replies you saw as unread.",
+  "publisher": "webhare",
+  "version": "0.1.0",
+  "license": "GPL-2.0-only",
+  "repository": { "type": "git", "url": "https://github.com/WebHare/agent-radar" },
+  "engines": { "vscode": "^1.90.0" },
+  "categories": ["Other"],
+  "extensionKind": ["ui"],
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "capabilities": {
+    "untrustedWorkspaces": { "supported": true },
+    "virtualWorkspaces": true
+  }
+}

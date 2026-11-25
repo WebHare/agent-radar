@@ -164,7 +164,7 @@ public final class Radar: @unchecked Sendable {
   public func markVSCodeFront() {
     let windows = Set(OpenWindows.read(paths: paths).map(\.key)).count
     guard windows <= 1 else {
-      note(&frontNote, "VS Code is in front with \(windows) windows: Agent Radar can't tell which one you see, so its replies don't count as seen")
+      note(&frontNote, "VS Code is in front with \(windows) windows: only conversation tabs that Agent Radar's VS Code extension reports in front of the focused window count as seen")
       return
     }
     note(&frontNote, "VS Code is in front with \(windows) window: all its replies count as seen while it stays in front")

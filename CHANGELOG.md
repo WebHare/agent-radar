@@ -22,6 +22,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Code extension then shows the same conversations in all of them.
 - Mark a conversation as read by right-clicking it in the menu, or all of a workspace's conversations
   with **Mark all as read** in its foldout. Opening a conversation from the menu also marks it as read.
+- A companion VS Code extension. With it installed, a Claude Code conversation whose tab is in front in the
+  VS Code window you're using no longer turns unread when its reply finishes, also with several windows open.
 
 ### Fixed
 
