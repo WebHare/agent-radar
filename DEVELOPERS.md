@@ -21,6 +21,7 @@ writes to it, apart from the hooks you can switch on in Settings.
 | Unread and archived VS Code conversations | `globalStorage/state.vscdb`, row `Anthropic.claude-code`, `sessionUnread:<first folder>` and `hiddenSessionIds` |
 | Open VS Code windows | `~/.claude/ide/*.lock` (written per window by the Claude Code extension) |
 | Unread terminal sessions | `~/.agent-radar/terminal-seen.json`: when you last had each session's tab in front |
+| Which conversation tabs are in front of the focused VS Code window | `~/.agent-radar/vscode-windows/<pid>.json`, written per window by our own VS Code extension (`extensions/vscode`) |
 | Replies the extension doesn't mark unread | `~/.agent-radar/vscode-front.json`: when the user last surely saw all VS Code conversations (VS Code in front with a single window), and which ones they marked as read (workaround for anthropics/claude-code#110457, see issues #3 and #7) |
 
 A VS Code workspace is identified by its first folder, because that's how the extension keys its state. All of
@@ -40,9 +41,13 @@ these formats are internal to VS Code and Claude Code and may change with an upd
   - `DebugLog.swift`: the troubleshooting log from Settings; `Radar` and the providers explain each state in
     `Conversation.stateReason` and `ProviderResult.log` for it.
   - `VSCodeSeen.swift`: which VS Code replies the user surely saw, for replies the extension doesn't mark unread.
+  - `VSCodeCompanion.swift`: reading the window files of our VS Code extension.
   - `OrderedJSON.swift`: JSON editing that keeps the order of the user's settings.json.
   - `BuildInfo.swift`: which kind of build is running (local, DMG, App Store), its number and build date.
 - `Sources/AgentRadar`: the SwiftUI menu bar app (views, and talking to Terminal.app).
+- `extensions/vscode`: the companion VS Code extension (plain JavaScript, no build step). It reports which tabs
+  are in front of each window, so the app knows which conversations the user sees. It's agent-neutral: it
+  reports all webview tabs, and `ClaudeCodeProvider` picks the Claude Code ones by `viewType`.
 - `Tests/RadarKitTests`: unit tests, and integration tests against a fake VS Code and Claude Code setup on disk.
 - `scripts/build-app.sh`: building the app bundle and DMG; `scripts/AgentRadar.entitlements`: its entitlements.
 - `doc/`: [requirements](doc/requirements.md) and [the Claude Code hooks](doc/claude-hooks.md).
@@ -57,6 +62,11 @@ swift run AgentRadar                          # run the menu bar app from the te
 swift run AgentRadar --install-claude-hooks   # or --uninstall-claude-hooks
 scripts/build-app.sh                          # build build/Agent Radar.app
 ```
+
+To try the VS Code extension without installing it, open a window with it loaded:
+`code --new-window --extensionDevelopmentPath="$PWD/extensions/vscode" <folder>`. Its file appears in
+`~/.agent-radar/vscode-windows/`. To install it, package it with `npx @vscode/vsce package` in
+`extensions/vscode` and install the `.vsix` with `code --install-extension`.
 
 `scripts/build-app.sh` also takes `--universal` (Apple silicon and Intel), `--dmg` (also builds
 `build/Agent-Radar-<version>.dmg`), `--install` and `--channel=local|dmg|appstore` (default `local`).

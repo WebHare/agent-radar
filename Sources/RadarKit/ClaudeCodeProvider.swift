@@ -9,6 +9,8 @@ import Foundation
 ///   - `hiddenSessionIds`: archived sessions. They are left out unless they are waiting, unread or working.
 /// - Workspace state, key `Anthropic.claude-code`, member `panelTabSessions`: the conversation tabs that were
 ///   open in that workspace, with their titles.
+/// - Agent Radar's VS Code extension (see `VSCodeCompanion`): which conversation tabs are in front of the focused
+///   window. A conversation tab is a webview with `panelViewType`, titled like its `panelTabSessions` entry.
 /// - `~/.claude/sessions/<pid>.json`: running sessions with their folder, `entrypoint` (`claude-vscode` for the
 ///   extension, something else for a terminal), `status` (`busy`, `idle`, or `waiting` with the reason in
 ///   `waitingFor`), `startedAt` and `statusUpdatedAt`.
@@ -18,6 +20,9 @@ import Foundation
 public final class ClaudeCodeProvider: ConversationProvider {
   public static let providerID = "claude-code"
   static let extensionKey = "Anthropic.claude-code"
+  /// The `viewType` of a conversation tab in the editor area. Conversations in the sidebar are webview views,
+  /// which other extensions can't see.
+  static let panelViewType = "mainThreadWebview-claudeVSCodePanel"
 
   private let paths: RadarPaths
   private var titleCache: [String: TitleCacheEntry] = [:]
@@ -71,6 +76,8 @@ public final class ClaudeCodeProvider: ConversationProvider {
     let transcripts = transcriptIndex()
     titleCache = titleCache.filter { transcripts[$0.key] != nil }
     seen.prune(keeping: Set(live.filter { !$0.isExtension }.map(\.sessionId)))
+    let companionWindows = VSCodeCompanion.read(paths: paths)
+    let now = Date()
 
     var result = ProviderResult()
     // Sessions in VS Code (the extension or its integrated terminal) belong to its workspaces; sessions in
@@ -79,6 +86,8 @@ public final class ClaudeCodeProvider: ConversationProvider {
     for ws in workspaces {
       let tabs = (ws.extensionState[Self.extensionKey]?["panelTabSessions"] as? [JSONObject]) ?? []
       let liveHere = inVSCode.filter { Self.workspaceKey(forFolder: $0.cwd, among: keys) == ws.key }
+      vscodeSeen.markInFront(Self.seenTabs(tabs: tabs, windows: companionWindows.filter { $0.key == ws.key }, now: now),
+                             now: now)
       // The extension's unread dot, minus what the user marked as read in the menu since, plus replies the
       // extension misses: those the app isn't sure the user saw. TODO: drop the last part when
       // https://github.com/anthropics/claude-code/issues/110457 is fixed (https://github.com/WebHare/agent-radar/issues/3).
@@ -166,6 +175,24 @@ public final class ClaudeCodeProvider: ConversationProvider {
 
   public func markTerminalSeen(tty: String) {
     seen.markSeen(readLiveSessions().filter { !$0.isExtension && $0.tty == tty }.map(\.sessionId))
+  }
+
+  /// When the user last saw each conversation's tab in front of a focused window, by session ID. A tab is matched
+  /// to its conversation by title; a title that several of the workspace's conversations share matches none, as
+  /// the app can't tell which one the user saw.
+  static func seenTabs(tabs: [JSONObject], windows: [VSCodeCompanion.Window], now: Date) -> [String: Date] {
+    let byTitle = Dictionary(grouping: tabs.compactMap { tab -> (title: String, id: String)? in
+      guard let id = tab["sessionId"] as? String, let title = tab["title"] as? String else { return nil }
+      return (title, id)
+    }, by: \.title)
+    var result: [String: Date] = [:]
+    for window in windows {
+      for tab in window.tabs where tab.viewType == panelViewType {
+        guard let matches = byTitle[tab.label], matches.count == 1, let seen = window.seen(tab, now: now) else { continue }
+        result[matches[0].id] = max(result[matches[0].id] ?? .distantPast, seen)
+      }
+    }
+    return result
   }
 
   /// Adds what the transcript knows: when the conversation last changed, and its full title (tab titles are

@@ -55,7 +55,8 @@ Read the relevant section before changing behaviour, and update it in the same c
   file, and name things for what they are (`Workspace` with a `kind`, `ConversationTarget`), not after VS Code.
 - **Read only.** The app never writes to the files of editors, terminals or agents, except for adding and removing its
   own hook entries in Claude Code's settings.json when the user switches the hooks in Settings (only through
-  `ClaudeHooks`). Its other files live in `~/.agent-radar/`. Open SQLite databases read-only (`mode=ro`).
+  `ClaudeHooks`). Its other files live in `~/.agent-radar/`, which is also the only place the companion VS Code
+  extension (`extensions/vscode`) writes to. Open SQLite databases read-only (`mode=ro`).
 - **Undocumented formats stay in one place per provider.** Everything known about the Claude Code extension's
   internal state (storage keys, session files, transcripts, hook events) lives in `ClaudeCodeProvider.swift`;
   VS Code's own storage in `VSCodeState.swift`; process and terminal lookups in `Processes.swift`, and

@@ -2,7 +2,8 @@ import Foundation
 
 /// Remembers which replies in VS Code the user has surely seen, so the others count as unread even when the
 /// Claude Code extension shows a gray dot. Without knowing which VS Code window is in front, the app is only sure
-/// when VS Code is the frontmost app with a single window, or when the user marks a conversation as read.
+/// when VS Code is the frontmost app with a single window, when the user marks a conversation as read, or, with
+/// Agent Radar's VS Code extension installed, when its tab is in front of the focused window (see `VSCodeCompanion`).
 ///
 /// TODO: workaround for the Claude Code extension ignoring window focus when it decides a reply was seen
 /// (https://github.com/anthropics/claude-code/issues/110457). Remove it when that's fixed, and read the unread
@@ -21,7 +22,11 @@ final class VSCodeSeen {
   private(set) var lastSure: Date
   /// Session ID → when the user marked it as read (or opened it from the menu).
   private(set) var read: [String: Date] = [:]
+  /// Session ID → when its tab was last in front of the focused VS Code window, according to the extension.
+  private(set) var inFront: [String: Date] = [:]
   private var savedSure: Date
+  /// When `inFront` was last written to disk; it changes on nearly every scan while a tab is in front.
+  private var savedInFront = Date.distantPast
 
   /// The first time, everything before `now` counts as seen, so old replies don't all turn unread.
   init(paths: RadarPaths, now: Date = Date()) {
@@ -31,6 +36,7 @@ final class VSCodeSeen {
     if let seconds = (raw?["lastSure"] ?? raw?["lastFront"]) as? Double {
       lastSure = Date(timeIntervalSince1970: seconds)
       read = ((raw?["read"] as? [String: Double]) ?? [:]).mapValues { Date(timeIntervalSince1970: $0) }
+      inFront = ((raw?["inFront"] as? [String: Double]) ?? [:]).mapValues { Date(timeIntervalSince1970: $0) }
       savedSure = lastSure
     } else {
       lastSure = now
@@ -41,7 +47,7 @@ final class VSCodeSeen {
 
   /// When the user last surely saw this conversation.
   func seenSince(_ sessionId: String) -> Date {
-    max(lastSure, read[sessionId] ?? .distantPast)
+    max(lastSure, read[sessionId] ?? .distantPast, inFront[sessionId] ?? .distantPast)
   }
 
   /// The user surely sees every VS Code conversation's latest reply now.
@@ -56,11 +62,23 @@ final class VSCodeSeen {
     save()
   }
 
+  /// Session ID → when its tab was last seen in front of the focused window. Only moves forward. Saved right away
+  /// for a conversation seen for the first time, otherwise at most every `saveInterval`.
+  func markInFront(_ seen: [String: Date], now: Date = Date()) {
+    var isNew = false
+    for (id, date) in seen where date > (inFront[id] ?? .distantPast) {
+      isNew = isNew || inFront[id] == nil
+      inFront[id] = date
+    }
+    if isNew || (now.timeIntervalSince(savedInFront) >= Self.saveInterval && !seen.isEmpty) { save() }
+  }
+
   /// Forgets marks of conversations that are gone.
   func prune(keeping ids: Set<String>) {
-    let before = read.count
+    let before = read.count + inFront.count
     read = read.filter { ids.contains($0.key) }
-    if read.count != before { save() }
+    inFront = inFront.filter { ids.contains($0.key) }
+    if read.count + inFront.count != before { save() }
   }
 
   /// Whether an idle session has a reply that finished after the user last surely saw it.
@@ -74,7 +92,10 @@ final class VSCodeSeen {
   func explain(idleSince: Date?, startedAt: Date?, sessionId: String) -> String {
     guard let idleSince else { return "idle, but the session file doesn't say since when" }
     let finished = "its reply finished at \(DebugLog.time(idleSince))"
-    let seen = if let read = read[sessionId], read >= lastSure {
+    let read = read[sessionId] ?? .distantPast, front = inFront[sessionId] ?? .distantPast
+    let seen = if front >= lastSure && front >= read {
+      "its tab was last in front in the focused VS Code window at \(DebugLog.time(front))"
+    } else if read >= lastSure {
       "you marked it as read (or opened it from the menu) at \(DebugLog.time(read))"
     } else {
       "Agent Radar was last sure you saw VS Code's replies at \(DebugLog.time(lastSure)) (VS Code in front with one window)"
@@ -90,10 +111,12 @@ final class VSCodeSeen {
   private func save() {
     try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     let raw: [String: Any] = ["lastSure": lastSure.timeIntervalSince1970,
-                              "read": read.mapValues { $0.timeIntervalSince1970 }]
+                              "read": read.mapValues { $0.timeIntervalSince1970 },
+                              "inFront": inFront.mapValues { $0.timeIntervalSince1970 }]
     if let data = try? JSONSerialization.data(withJSONObject: raw, options: [.sortedKeys]) {
       try? data.write(to: url, options: .atomic)
       savedSure = lastSure
+      savedInFront = Date()
     }
   }
 }
